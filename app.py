@@ -1,61 +1,54 @@
-# app.py - Empathetic Conversational Chatbot
-# Production-ready version for Streamlit Cloud deployment
-
 import streamlit as st
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import math
-import time
-import requests
-from io import BytesIO
-import pickle
+import re
 import os
+from kaggle.api.kaggle_api_extended import KaggleApi
 
-# --- MODEL HYPERPARAMETERS (Must match trained model) ---
-EMBED_DIM = 512
-NUM_HEADS = 4
-NUM_ENCODER_LAYERS = 3
-NUM_DECODER_LAYERS = 3
-DROPOUT = 0.1
-FF_DIM = 4 * EMBED_DIM
-DEVICE = torch.device('cpu')
+# ========== Page Configuration ==========
+st.set_page_config(
+    page_title="Empathetic Chatbot",
+    page_icon="💬",
+    layout="wide"
+)
 
-# --- SPECIAL TOKEN INDICES ---
-UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
+# ========== Custom CSS for Better UI ==========
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        text-align: center;
+        color: #1f77b4;
+        margin-bottom: 1rem;
+    }
+    .chat-message {
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 0.5rem 0;
+    }
+    .user-message {
+        background-color: #e3f2fd;
+        text-align: right;
+    }
+    .bot-message {
+        background-color: #f0f0f0;
+        text-align: left;
+    }
+    .sidebar-info {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 5px;
+        margin: 0.5rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# --- SIMPLE VOCABULARY CLASS ---
-class SimpleVocab:
-    """Simple vocabulary class to replace torchtext.vocab.Vocab"""
-    def __init__(self, tokens_to_idx, idx_to_tokens):
-        self.stoi = tokens_to_idx  # string to index
-        self.itos = idx_to_tokens  # index to string
-        
-    def __len__(self):
-        return len(self.itos)
-    
-    def __getitem__(self, token):
-        """Get index for a token"""
-        return self.stoi.get(token, UNK_IDX)
-    
-    def lookup_token(self, idx):
-        """Get token for an index"""
-        if idx < len(self.itos):
-            return self.itos[idx]
-        return '<unk>'
-    
-    def lookup_tokens(self, indices):
-        """Get tokens for a list of indices"""
-        return [self.lookup_token(idx) for idx in indices]
-    
-    def get_itos(self):
-        """Get index to string list"""
-        return self.itos
-
-# --- MODEL ARCHITECTURE CLASSES ---
+# ========== Model Architecture Components ==========
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, emb_dim: int, dropout: float = 0.1, max_len: int = 5000):
+    def __init__(self, emb_dim, dropout=0.1, max_len=5000):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         position = torch.arange(max_len).unsqueeze(1)
@@ -65,44 +58,50 @@ class PositionalEncoding(nn.Module):
         pe[:, 0, 1::2] = torch.cos(position * div_term)
         self.register_buffer('pe', pe)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x):
         x = x + self.pe[:x.size(0)]
         return self.dropout(x)
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, emb_dim: int, num_heads: int, dropout: float):
+    def __init__(self, emb_dim, num_heads, dropout):
         super().__init__()
         assert emb_dim % num_heads == 0
         self.emb_dim = emb_dim
         self.num_heads = num_heads
         self.head_dim = emb_dim // num_heads
+        
         self.fc_q = nn.Linear(emb_dim, emb_dim)
         self.fc_k = nn.Linear(emb_dim, emb_dim)
         self.fc_v = nn.Linear(emb_dim, emb_dim)
         self.fc_o = nn.Linear(emb_dim, emb_dim)
         self.dropout = nn.Dropout(dropout)
-        self.scale = torch.sqrt(torch.FloatTensor([self.head_dim])).to(DEVICE)
+        self.scale = torch.sqrt(torch.FloatTensor([self.head_dim]))
     
     def forward(self, query, key, value, mask=None):
         batch_size = query.shape[0]
         Q = self.fc_q(query)
         K = self.fc_k(key)
         V = self.fc_v(value)
+        
         Q = Q.view(batch_size, -1, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
         K = K.view(batch_size, -1, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
         V = V.view(batch_size, -1, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
-        energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale
+        
+        energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale.to(query.device)
+        
         if mask is not None:
             energy = energy.masked_fill(mask == 0, -1e10)
+        
         attention = torch.softmax(energy, dim=-1)
         x = torch.matmul(self.dropout(attention), V)
         x = x.permute(0, 2, 1, 3).contiguous()
         x = x.view(batch_size, -1, self.emb_dim)
         x = self.fc_o(x)
+        
         return x, attention
 
 class PositionwiseFeedforward(nn.Module):
-    def __init__(self, emb_dim: int, ff_dim: int, dropout: float):
+    def __init__(self, emb_dim, ff_dim, dropout):
         super().__init__()
         self.fc_1 = nn.Linear(emb_dim, ff_dim)
         self.fc_2 = nn.Linear(ff_dim, emb_dim)
@@ -110,7 +109,10 @@ class PositionwiseFeedforward(nn.Module):
         self.relu = nn.ReLU()
     
     def forward(self, x):
-        return self.fc_2(self.dropout(self.relu(self.fc_1(x))))
+        x = self.relu(self.fc_1(x))
+        x = self.dropout(x)
+        x = self.fc_2(x)
+        return x
 
 class EncoderLayer(nn.Module):
     def __init__(self, emb_dim, num_heads, ff_dim, dropout):
@@ -154,8 +156,7 @@ class Encoder(nn.Module):
         self.device = device
         self.tok_embedding = nn.Embedding(input_dim, emb_dim)
         self.pos_embedding = PositionalEncoding(emb_dim, dropout)
-        self.layers = nn.ModuleList([EncoderLayer(emb_dim, num_heads, ff_dim, dropout) 
-                                     for _ in range(num_layers)])
+        self.layers = nn.ModuleList([EncoderLayer(emb_dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
         self.scale = torch.sqrt(torch.FloatTensor([emb_dim])).to(device)
     
@@ -173,8 +174,7 @@ class Decoder(nn.Module):
         self.device = device
         self.tok_embedding = nn.Embedding(output_dim, emb_dim)
         self.pos_embedding = PositionalEncoding(emb_dim, dropout)
-        self.layers = nn.ModuleList([DecoderLayer(emb_dim, num_heads, ff_dim, dropout) 
-                                     for _ in range(num_layers)])
+        self.layers = nn.ModuleList([DecoderLayer(emb_dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
         self.fc_out = nn.Linear(emb_dim, output_dim)
         self.dropout = nn.Dropout(dropout)
         self.scale = torch.sqrt(torch.FloatTensor([emb_dim])).to(device)
@@ -185,7 +185,8 @@ class Decoder(nn.Module):
         trg = self.dropout(pos_embedded)
         for layer in self.layers:
             trg, attention = layer(trg, enc_src, trg_mask, src_mask)
-        return self.fc_out(trg), attention
+        output = self.fc_out(trg)
+        return output, attention
 
 class Seq2SeqTransformer(nn.Module):
     def __init__(self, encoder, decoder, src_pad_idx, trg_pad_idx, device):
@@ -197,129 +198,119 @@ class Seq2SeqTransformer(nn.Module):
         self.device = device
     
     def make_src_mask(self, src):
-        return (src != self.src_pad_idx).unsqueeze(1).unsqueeze(2)
+        src_mask = (src != self.src_pad_idx).unsqueeze(1).unsqueeze(2)
+        return src_mask
     
     def make_trg_mask(self, trg):
         trg_pad_mask = (trg != self.trg_pad_idx).unsqueeze(1).unsqueeze(2)
-        trg_sub_mask = torch.tril(torch.ones((trg.shape[1], trg.shape[1]), device=self.device)).bool()
-        return trg_pad_mask & trg_sub_mask
+        trg_len = trg.shape[1]
+        trg_sub_mask = torch.tril(torch.ones((trg_len, trg_len), device=self.device)).bool()
+        trg_mask = trg_pad_mask & trg_sub_mask
+        return trg_mask
     
     def forward(self, src, trg):
         src_mask = self.make_src_mask(src)
         trg_mask = self.make_trg_mask(trg)
         enc_src = self.encoder(src, src_mask)
-        return self.decoder(trg, enc_src, trg_mask, src_mask)
+        output, attention = self.decoder(trg, enc_src, trg_mask, src_mask)
+        return output, attention
 
-# --- LOAD MODEL AND VOCABULARY FROM HUGGINGFACE ---
+# ========== Helper Functions ==========
+
+def normalize_text(text):
+    text = str(text).lower()
+    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"([?.!,])", r" \1 ", text)
+    text = re.sub(r'[" "]+', " ", text)
+    return text
+
+def simple_tokenizer(s):
+    return s.split()
+
+@st.cache_resource
+def download_model_files():
+    """Download model and vocab files from Kaggle dataset"""
+    try:
+        # Authenticate Kaggle API
+        api = KaggleApi()
+        api.authenticate()
+        
+        # Download dataset (replace with your actual Kaggle dataset path)
+        dataset_name = "nadeemahmad003/chatbot-data"  # Update this with your model dataset
+        
+        if not os.path.exists("model_files"):
+            os.makedirs("model_files")
+        
+        # Download all files from the dataset
+        api.dataset_download_files(dataset_name, path="model_files", unzip=True)
+        
+        return True
+    except Exception as e:
+        st.error(f"Error downloading model files: {str(e)}")
+        return False
 
 @st.cache_resource
 def load_model_and_vocab():
-    """Loads model and vocabulary from HuggingFace."""
-    
-    with st.spinner("Loading model and vocabulary from HuggingFace... (This may take a minute)"):
-        # HuggingFace direct download URLs
-        vocab_url = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/vocab.pth"
-        model_url = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/best-model-v4-stable.pt"
+    """Load the trained model and vocabulary"""
+    try:
+        # Set device
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        try:
-            # Download vocabulary
-            vocab_response = requests.get(vocab_url, timeout=120)
-            vocab_response.raise_for_status()
-            
-            # Load vocab - it should be a dictionary or similar structure
-            vocab_data = torch.load(
-                BytesIO(vocab_response.content), 
-                map_location=DEVICE,
-                weights_only=False
-            )
-            
-            # Convert to SimpleVocab if needed
-            if hasattr(vocab_data, 'get_stoi') and hasattr(vocab_data, 'get_itos'):
-                # It's a torchtext vocab object
-                stoi = vocab_data.get_stoi()
-                itos = vocab_data.get_itos()
-                vocab = SimpleVocab(stoi, itos)
-            elif isinstance(vocab_data, dict) and 'stoi' in vocab_data and 'itos' in vocab_data:
-                # It's already a dictionary
-                vocab = SimpleVocab(vocab_data['stoi'], vocab_data['itos'])
-            else:
-                # Try to use it directly
-                vocab = vocab_data
-            
-            # Get vocab size
-            VOCAB_SIZE = len(vocab)
-            
-            # Initialize model architecture
-            encoder = Encoder(VOCAB_SIZE, EMBED_DIM, NUM_ENCODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
-            decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
-            model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, DEVICE).to(DEVICE)
-            
-            # Download and load model weights
-            model_response = requests.get(model_url, timeout=120)
-            model_response.raise_for_status()
-            
-            # Load model state dict with weights_only=True (safer for model weights)
-            state_dict = torch.load(
-                BytesIO(model_response.content), 
-                map_location=DEVICE,
-                weights_only=True
-            )
-            model.load_state_dict(state_dict)
-            model.eval()
-            
-            st.success("✅ Model loaded successfully!")
-            return model, vocab
-            
-        except requests.exceptions.Timeout:
-            st.error("⏱️ Request timed out. Please refresh the page and try again.")
-            st.stop()
-        except requests.exceptions.RequestException as e:
-            st.error(f"❌ Network error: {str(e)}")
-            st.error("Please check your internet connection and try again.")
-            st.stop()
-        except Exception as e:
-            st.error(f"❌ Error loading model: {str(e)}")
-            st.error("Please refresh the page or contact support if the issue persists.")
-            st.stop()
+        # Download files if not present
+        if not os.path.exists("model_files/vocab.pth"):
+            with st.spinner("Downloading model files from Kaggle..."):
+                download_model_files()
+        
+        # Load vocabulary
+        vocab = torch.load('model_files/vocab.pth', map_location=device)
+        
+        # Model hyperparameters (must match training)
+        VOCAB_SIZE = len(vocab)
+        EMBED_DIM = 512
+        NUM_HEADS = 4
+        NUM_ENCODER_LAYERS = 3
+        NUM_DECODER_LAYERS = 3
+        DROPOUT = 0.1
+        FF_DIM = 4 * EMBED_DIM
+        PAD_IDX = 1
+        
+        # Initialize model
+        encoder = Encoder(VOCAB_SIZE, EMBED_DIM, NUM_ENCODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, device)
+        decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, device)
+        model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, device).to(device)
+        
+        # Load trained weights
+        model.load_state_dict(torch.load('model_files/best-model-v4-stable.pt', map_location=device))
+        model.eval()
+        
+        return model, vocab, device
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
+        return None, None, None
 
-# Load model and vocab
-model, vocab = load_model_and_vocab()
-BOS_TOKEN = vocab.lookup_token(BOS_IDX)
-EOS_TOKEN = vocab.lookup_token(EOS_IDX)
-
-# Extract emotion list from vocabulary
-EMOTION_LIST = sorted([emo.replace('<emotion_', '').replace('>', '') 
-                       for emo in vocab.get_itos() if emo.startswith('<emotion_')])
-
-# Fallback if no emotions found
-if not EMOTION_LIST:
-    EMOTION_LIST = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'afraid', 
-                    'disgusted', 'joyful', 'grateful', 'proud', 'sentimental']
-
-# --- INFERENCE FUNCTIONS ---
-
-def simple_tokenizer(s):
-    """Simple word tokenizer"""
-    return s.split()
-
-def greedy_decode(model, src_sentence, max_len=50):
-    """Greedy decoding strategy."""
+def greedy_decode(model, vocab, src_sentence, device, max_len=50):
+    """Greedy decoding for inference"""
     model.eval()
+    
+    BOS_IDX = vocab['<bos>']
+    EOS_IDX = vocab['<eos>']
+    
     tokens = simple_tokenizer(src_sentence)
     src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
-    src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(DEVICE)
+    src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(device)
     src_mask = model.make_src_mask(src_tensor)
     
     with torch.no_grad():
         enc_src = model.encoder(src_tensor, src_mask)
     
     trg_indexes = [BOS_IDX]
+    
     for i in range(max_len):
-        trg_tensor = torch.LongTensor(trg_indexes).unsqueeze(0).to(DEVICE)
+        trg_tensor = torch.LongTensor(trg_indexes).unsqueeze(0).to(device)
         trg_mask = model.make_trg_mask(trg_tensor)
         
         with torch.no_grad():
-            output, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
+            output, attention = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
         
         pred_token_idx = output.argmax(2)[:, -1].item()
         trg_indexes.append(pred_token_idx)
@@ -328,14 +319,25 @@ def greedy_decode(model, src_sentence, max_len=50):
             break
     
     trg_tokens = vocab.lookup_tokens(trg_indexes)
-    return " ".join(trg_tokens)
+    response = " ".join(trg_tokens)
+    
+    # Clean response
+    response = response.replace("<bos>", "").replace("<eos>", "").strip()
+    
+    return response
 
-def beam_search_decode(model, src_sentence, beam_width=3, max_len=50):
-    """Beam search decoding strategy."""
+def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len=50):
+    """Beam search decoding for inference"""
+    import torch.nn.functional as F
+    
     model.eval()
+    
+    BOS_IDX = vocab['<bos>']
+    EOS_IDX = vocab['<eos>']
+    
     tokens = simple_tokenizer(src_sentence)
     src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
-    src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(DEVICE)
+    src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(device)
     src_mask = model.make_src_mask(src_tensor)
     
     with torch.no_grad():
@@ -351,7 +353,7 @@ def beam_search_decode(model, src_sentence, beam_width=3, max_len=50):
                 completed_beams.append((seq, score))
                 continue
             
-            trg_tensor = torch.LongTensor(seq).unsqueeze(0).to(DEVICE)
+            trg_tensor = torch.LongTensor(seq).unsqueeze(0).to(device)
             trg_mask = model.make_trg_mask(trg_tensor)
             
             with torch.no_grad():
@@ -372,110 +374,135 @@ def beam_search_decode(model, src_sentence, beam_width=3, max_len=50):
     
     completed_beams.extend(beams)
     best_beam = sorted(completed_beams, key=lambda x: x[1] / len(x[0]), reverse=True)[0]
-    trg_tokens = vocab.lookup_tokens(best_beam[0])
-    return " ".join(trg_tokens)
-
-# --- STREAMLIT UI ---
-
-st.set_page_config(page_title="Empathetic Chatbot", page_icon="💬", layout="wide")
-
-st.title("💬 Empathetic Conversational Chatbot")
-st.caption("A Transformer-based chatbot built from scratch using Multi-Head Attention")
-
-# Sidebar
-st.sidebar.header("⚙️ Configuration")
-st.sidebar.markdown("---")
-
-selected_emotion = st.sidebar.selectbox(
-    "🎭 Select Emotion:",
-    EMOTION_LIST,
-    index=0
-)
-
-situation_input = st.sidebar.text_area(
-    "📝 Describe the Situation:",
-    placeholder="Example: I remember going to the fireworks with my best friend...",
-    height=100,
-    help="Provide context about the situation you want to discuss"
-)
-
-decoding_strategy = st.sidebar.radio(
-    "🔍 Decoding Strategy:",
-    ("Greedy Search", "Beam Search (k=3)"),
-    help="Greedy is faster, Beam Search may produce better results"
-)
-
-st.sidebar.markdown("---")
-if st.sidebar.button("🗑️ Clear Chat History"):
-    st.session_state.messages = [{"role": "assistant", "content": "Hello! How can I help you today?"}]
-    st.rerun()
-
-st.sidebar.markdown("---")
-st.sidebar.info("""
-**How to use:**
-1. Select an emotion that matches your mood
-2. Describe the situation in the text area
-3. Type your message below and press Enter
-4. The chatbot will respond empathetically
-""")
-
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Hello! How can I help you today?"}]
-
-# Display chat messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Chat input
-if prompt := st.chat_input("Type your message here..."):
-    # Validate situation input
-    if not situation_input or situation_input.strip() == "":
-        st.warning("⚠️ Please provide a situation in the sidebar before sending a message.")
-        st.stop()
+    best_seq = best_beam[0]
     
-    # Add user message to history
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    trg_tokens = vocab.lookup_tokens(best_seq)
+    response = " ".join(trg_tokens)
     
-    # Generate assistant response
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
+    # Clean response
+    response = response.replace("<bos>", "").replace("<eos>", "").strip()
+    
+    return response
+
+# ========== Main Application ==========
+
+def main():
+    # Header
+    st.markdown('<div class="main-header">💬 Empathetic Conversational Chatbot</div>', unsafe_allow_html=True)
+    st.markdown("---")
+    
+    # Load model
+    model, vocab, device = load_model_and_vocab()
+    
+    if model is None:
+        st.error("Failed to load model. Please check your Kaggle credentials and dataset path.")
+        st.info("To set up Kaggle API credentials on Streamlit Cloud:")
+        st.code("""
+1. Go to Kaggle → Account → API → Create New API Token
+2. This downloads kaggle.json
+3. In Streamlit Cloud:
+   - Go to App Settings → Secrets
+   - Add your credentials:
+     KAGGLE_USERNAME = "your_username"
+     KAGGLE_KEY = "your_api_key"
+        """)
+        return
+    
+    # Sidebar
+    with st.sidebar:
+        st.header("⚙️ Settings")
         
-        with st.spinner("Thinking..."):
-            # Construct model input (as per requirements)
-            input_text = f"Emotion: {selected_emotion} | Situation: {situation_input.strip()} | Customer: {prompt} Agent:"
-            
-            # Decode
-            if decoding_strategy == "Greedy Search":
-                response = greedy_decode(model, input_text)
+        # Emotion selection
+        emotions = ["afraid", "angry", "annoyed", "anticipating", "anxious", "apprehensive", 
+                   "ashamed", "caring", "confident", "content", "devastated", "disappointed",
+                   "disgusted", "embarrassed", "excited", "faithful", "furious", "grateful",
+                   "guilty", "hopeful", "impressed", "jealous", "joyful", "lonely", "nostalgic",
+                   "prepared", "proud", "sad", "sentimental", "surprised", "terrified", "trusting"]
+        
+        selected_emotion = st.selectbox("Select Emotion (Optional)", ["auto"] + emotions)
+        
+        # Decoding strategy
+        decoding_method = st.radio("Decoding Strategy", ["Greedy Search", "Beam Search"])
+        
+        if decoding_method == "Beam Search":
+            beam_width = st.slider("Beam Width", 2, 5, 3)
+        
+        st.markdown("---")
+        st.markdown('<div class="sidebar-info">', unsafe_allow_html=True)
+        st.markdown("**About this Chatbot:**")
+        st.markdown("This is a Transformer-based empathetic chatbot trained from scratch.")
+        st.markdown(f"- Device: {device}")
+        st.markdown(f"- Vocab Size: {len(vocab)}")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Clear conversation
+        if st.button("🗑️ Clear Conversation"):
+            st.session_state.messages = []
+            st.rerun()
+    
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    # Display chat history
+    for message in st.session_state.messages:
+        if message["role"] == "user":
+            st.markdown(f'<div class="chat-message user-message">👤 You: {message["content"]}</div>', 
+                       unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div class="chat-message bot-message">🤖 Agent: {message["content"]}</div>', 
+                       unsafe_allow_html=True)
+    
+    # Chat input
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
+        situation = st.text_input("Situation (Optional):", placeholder="Describe the situation...")
+    
+    with col2:
+        st.write("")  # Spacing
+    
+    user_input = st.text_input("Your Message:", placeholder="Type your message here...", key="user_input")
+    
+    col1, col2, col3 = st.columns([1, 1, 3])
+    
+    with col1:
+        send_button = st.button("Send 📤", use_container_width=True)
+    
+    if send_button and user_input:
+        # Normalize input
+        normalized_input = normalize_text(user_input)
+        
+        # Determine emotion
+        if selected_emotion == "auto":
+            emotion = "neutral"
+        else:
+            emotion = selected_emotion
+        
+        # Prepare situation
+        if situation.strip():
+            normalized_situation = normalize_text(situation)
+        else:
+            normalized_situation = "general conversation"
+        
+        # Create input text
+        input_text = f"Emotion: {emotion} | Situation: {normalized_situation} | Customer: {normalized_input} Agent:"
+        
+        # Add user message to history
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        
+        # Generate response
+        with st.spinner("Generating response..."):
+            if decoding_method == "Greedy Search":
+                response = greedy_decode(model, vocab, input_text, device)
             else:
-                response = beam_search_decode(model, input_text, beam_width=3)
-            
-            # Clean response
-            clean_response = response.replace(BOS_TOKEN, "").strip()
-            if EOS_TOKEN in clean_response:
-                clean_response = clean_response.split(EOS_TOKEN)[0].strip()
-            
-            # Handle empty responses
-            if not clean_response or clean_response == "":
-                clean_response = "I understand. Could you tell me more about that?"
-            
-            # Typing effect
-            full_response = ""
-            for chunk in clean_response.split():
-                full_response += chunk + " "
-                time.sleep(0.05)
-                message_placeholder.markdown(full_response + "▌")
-            
-            message_placeholder.markdown(full_response)
+                response = beam_search_decode(model, vocab, input_text, device, beam_width=beam_width)
         
-        # Add to history
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        # Add bot response to history
+        st.session_state.messages.append({"role": "bot", "content": response})
+        
+        # Rerun to update chat
+        st.rerun()
 
-# Footer
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Built with ❤️ using PyTorch & Streamlit**")
-st.sidebar.markdown("Model: Custom Transformer (512d, 4 heads, 3 layers)")
+if __name__ == "__main__":
+    main()
