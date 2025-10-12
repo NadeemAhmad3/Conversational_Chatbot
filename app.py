@@ -28,6 +28,11 @@ st.markdown("""
         background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
     }
     
+    /* Make header background transparent to blend with app background */
+    [data-testid="stHeader"] {
+        background-color: transparent !important;
+    }
+    
     /* Remove default padding */
     .block-container {
         padding-top: 2rem !important;
