@@ -665,10 +665,10 @@ def main():
     # Header
      st.markdown("""
         <div style="margin-bottom:1rem;">
-        <div class="main-header">✨ MIRA</div>
-        <div class="subtitle">Your Empathetic AI Companion</div>
+          <div class="main-header">✨ MIRA</div>
+          <div class="subtitle">Your Empathetic AI Companion</div>
         </div>
-    """, unsafe_allow_html=True)
+     """, unsafe_allow_html=True)
 
     
     # Load model
