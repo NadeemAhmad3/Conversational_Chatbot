@@ -817,6 +817,36 @@ def main():
         st.session_state.messages.append({"role": "bot", "content": response})
         
         st.rerun()
+# Add this JavaScript injection to force sidebar toggle visibility
+st.markdown("""
+<script>
+// Force sidebar toggle to be visible
+function forceSidebarToggle() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .stSidebarCollapsedControl {
+            visibility: visible !important;
+            display: flex !important;
+            opacity: 1 !important;
+        }
+        .stSidebarCollapsedControl button {
+            background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
+            border: none !important;
+            border-radius: 8px !important;
+            color: white !important;
+            margin: 8px !important;
+            min-width: 40px !important;
+            min-height: 40px !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Run initially and whenever DOM changes
+forceSidebarToggle();
+setInterval(forceSidebarToggle, 1000);
+</script>
+""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
