@@ -293,6 +293,16 @@ st.markdown("""
     .stDeployButton {display: none;}
     #MainMenu {visibility: hidden;}
     .stDecoration {display: none;}
+    /* Final cleanup — remove any zero-height or empty markdown wrappers */
+    div[data-testid="stMarkdownContainer"]:has(> :empty),
+    div[data-testid="stVerticalBlock"]:not(:has(*)),
+    div[data-testid="stHorizontalBlock"]:not(:has(*)) {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
