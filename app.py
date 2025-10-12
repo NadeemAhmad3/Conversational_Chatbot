@@ -36,12 +36,19 @@ st.markdown("""
         max-width: 1200px;
     }
     
-   .element-container:empty,
-   .element-container:has(.stMarkdown:empty),
-   .stMarkdown:empty,
-    div[data-testid="stVerticalBlock"]:empty {
-    display: none !important;
-}
+   /* Hide all empty containers */
+    .element-container:empty,
+    .stMarkdown:empty,
+    div[data-testid="stVerticalBlock"]:empty,
+    div[data-testid="stHorizontalBlock"]:empty,
+    div[data-testid="stVerticalBlock"] > div:empty,
+    .stEmpty,
+    .stSpacer {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
     
     /* Main header with neon glow */
     .main-header {
