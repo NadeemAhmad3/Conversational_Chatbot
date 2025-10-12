@@ -165,9 +165,8 @@ def load_model_and_vocab():
     then loads the model and vocabulary.
     """
     # --- ACTION REQUIRED: Paste your direct download URLs here ---
-    # Example from Hugging Face Hub:
-    MODEL_URL = "https://huggingface.co/Nadeemoo3/Chatbot/blob/main/best-model-v4-stable.pt"
-    VOCAB_URL = "https://huggingface.co/Nadeemoo3/Chatbot/blob/main/vocab.pth"
+    MODEL_URL = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/best-model-v4-stable.pt"
+    VOCAB_URL = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/vocab.pth"
 
     MODEL_PATH = "best-model-v4-stable.pt"
     VOCAB_PATH = "vocab.pth"
@@ -199,7 +198,10 @@ def load_model_and_vocab():
         st.stop()
 
     try:
-        vocab = torch.load(VOCAB_PATH)
+        ### CRITICAL CHANGE ###
+        # Explicitly set weights_only=False because vocab.pth contains a full Python object, not just tensors.
+        vocab = torch.load(VOCAB_PATH, weights_only=False)
+        
         global VOCAB_SIZE
         VOCAB_SIZE = len(vocab)
         
@@ -207,7 +209,10 @@ def load_model_and_vocab():
         decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
         model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, DEVICE).to(DEVICE)
         
-        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+        ### CRITICAL CHANGE ###
+        # While the model state_dict might load with weights_only=True, it's safer to be consistent.
+        # Since you trust this file, we set it to False.
+        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False))
         model.eval()
         
         return model, vocab
