@@ -298,9 +298,6 @@ def load_model_and_vocab():
         # Set device
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # Allowlist torchtext.vocab.vocab.Vocab for safety (still included as precaution)
-        torch.serialization.add_safe_globals(['torchtext.vocab.vocab.Vocab'])
-        
         # Load vocabulary with weights_only=False since it's a Vocab object
         vocab = torch.load('model_files/vocab.pth', map_location=device, weights_only=False)
         
@@ -311,8 +308,8 @@ def load_model_and_vocab():
         if isinstance(vocab, str):
             raise ValueError(f"Expected a torchtext.vocab.vocab.Vocab object, but loaded a string: {vocab}")
         
-        # Verify vocab is the expected type
-        if not hasattr(vocab, '__getitem__'):  # Basic check for Vocab-like behavior
+        # Verify vocab is usable
+        if not hasattr(vocab, '__getitem__'):
             raise ValueError(f"Loaded vocab object is not usable as a vocabulary: {type(vocab)}")
         
         # Model hyperparameters (must match training)
