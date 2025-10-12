@@ -157,14 +157,12 @@ EMOTION_LIST = [
     'guilty', 'hopeful', 'impressed', 'jealous', 'joyful', 'lonely', 'nostalgic',
     'prepared', 'proud', 'sad', 'sentimental', 'surprised', 'terrified', 'trusting'
 ]
-
 @st.cache_resource
 def load_model_and_vocab():
     """
     Downloads model files from a public URL if they don't exist locally,
     then loads the model and vocabulary.
     """
-    # --- ACTION REQUIRED: Paste your direct download URLs here ---
     MODEL_URL = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/best-model-v4-stable.pt"
     VOCAB_URL = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/vocab.pth"
 
@@ -188,6 +186,14 @@ def load_model_and_vocab():
                         progress = int((downloaded_size / total_size) * 100) if total_size > 0 else 0
                         progress_bar.progress(progress)
                 progress_bar.empty()
+                
+                # --- START OF TEMPORARY DEBUG CODE ---
+                with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
+                    content_start = f.read(100)
+                    st.warning(f"DEBUG: Start of downloaded file '{filename}':")
+                    st.code(content_start)
+                # --- END OF TEMPORARY DEBUG CODE ---
+
             except requests.exceptions.RequestException as e:
                 st.error(f"Error downloading {filename}: {e}")
                 return False
@@ -198,10 +204,7 @@ def load_model_and_vocab():
         st.stop()
 
     try:
-        ### CRITICAL CHANGE ###
-        # Explicitly set weights_only=False because vocab.pth contains a full Python object, not just tensors.
         vocab = torch.load(VOCAB_PATH, weights_only=False)
-        
         global VOCAB_SIZE
         VOCAB_SIZE = len(vocab)
         
@@ -209,9 +212,6 @@ def load_model_and_vocab():
         decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
         model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, DEVICE).to(DEVICE)
         
-        ### CRITICAL CHANGE ###
-        # While the model state_dict might load with weights_only=True, it's safer to be consistent.
-        # Since you trust this file, we set it to False.
         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False))
         model.eval()
         
@@ -219,6 +219,7 @@ def load_model_and_vocab():
     except Exception as e:
         st.error(f"Failed to load the model or vocabulary. Error: {e}")
         return None, None
+
 
 model, vocab = load_model_and_vocab()
 if model and vocab:
