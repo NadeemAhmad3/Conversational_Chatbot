@@ -301,22 +301,23 @@ st.markdown("""
       height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
-}
-/* Restore sidebar toggle button */
-div[data-testid="collapsedControl"] {
-    visibility: visible !important;
-    display: flex !important;
-    opacity: 1 !important;
-    width: auto !important;
-    height: auto !important;
-    z-index: 9999 !important;
-}
+    }
+    
+    /* Restore sidebar toggle button */
+    div[data-testid="collapsedControl"] {
+        visibility: visible !important;
+        display: flex !important;
+        opacity: 1 !important;
+        width: auto !important;
+        height: auto !important;
+        z-index: 9999 !important;
+    }
 
-/* Make sure it stays clickable */
-div[data-testid="collapsedControl"] button {
-    pointer-events: auto !important;
-    cursor: pointer !important;
-}
+    /* Make sure it stays clickable */
+    div[data-testid="collapsedControl"] button {
+        pointer-events: auto !important;
+        cursor: pointer !important;
+    }
 
 
 
