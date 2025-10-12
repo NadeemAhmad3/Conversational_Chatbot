@@ -319,9 +319,9 @@ st.markdown("""
         height: 48px !important;
     }
 
-    /* Style the collapsed sidebar button - transparent background, only arrow */
+    /* Style the collapsed sidebar button - match app background */
     [data-testid="stSidebarCollapsedControl"] button {
-        background: transparent !important;
+        background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%) !important;
         border: none !important;
         border-radius: 8px !important;
         margin: 0 !important;
@@ -345,7 +345,7 @@ st.markdown("""
         height: 24px !important;
     }
 
-    /* Hide all other icons in the collapsed control area */
+    /* Hide all other buttons/icons in the collapsed control area */
     [data-testid="stSidebarCollapsedControl"] button:not(:first-child) {
         display: none !important;
     }
@@ -373,13 +373,13 @@ st.components.v1.html("""
             toggle.style.position = 'fixed';
             toggle.style.top = '20px';
             toggle.style.left = '10px';
-            // Hide all buttons except the first (arrow)
+            // Hide all buttons except the first (arrow) and set background
             const buttons = toggle.querySelectorAll('button');
             buttons.forEach((btn, index) => {
                 if (index !== 0) {
                     btn.style.display = 'none';
                 } else {
-                    btn.style.background = 'transparent';
+                    btn.style.background = 'linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%)';
                 }
             });
         }
@@ -523,7 +523,7 @@ class Decoder(nn.Module):
     def forward(self, trg, enc_src, trg_mask, src_mask):
         tok_embedded = self.tok_embedding(trg) * self.scale
         pos_embedded = self.pos_embedding(tok_embedded.permute(1, 0, 2)).permute(1, 0, 2)
-        trg = self.dropdown(pos_embedded)
+        trg = self.dropout(pos_embedded)
         for layer in self.layers:
             trg, attention = layer(trg, enc_src, trg_mask, src_mask)
         output = self.fc_out(trg)
