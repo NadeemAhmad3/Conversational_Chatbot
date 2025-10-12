@@ -1,0 +1,7 @@
+# requirements.txt
+
+streamlit
+requests
+
+# Install the CPU-only version of PyTorch for faster deployment on Streamlit Cloud
+torch --index-url https://download.pytorch.org/whl/cpu
