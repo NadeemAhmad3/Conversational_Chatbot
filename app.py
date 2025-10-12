@@ -194,7 +194,14 @@ def load_model_and_vocab():
             # Download vocabulary
             vocab_response = requests.get(vocab_url)
             vocab_response.raise_for_status()
-            vocab = torch.load(BytesIO(vocab_response.content), map_location=DEVICE)
+            
+            # Load vocab with weights_only=False (vocab contains custom torchtext class)
+            # This is safe because we trust the source (your own HuggingFace repo)
+            vocab = torch.load(
+                BytesIO(vocab_response.content), 
+                map_location=DEVICE,
+                weights_only=False
+            )
             
             # Get vocab size
             VOCAB_SIZE = len(vocab)
@@ -207,13 +214,21 @@ def load_model_and_vocab():
             # Download and load model weights
             model_response = requests.get(model_url)
             model_response.raise_for_status()
-            model.load_state_dict(torch.load(BytesIO(model_response.content), map_location=DEVICE))
+            
+            # Load model state dict with weights_only=True (safer for model weights)
+            state_dict = torch.load(
+                BytesIO(model_response.content), 
+                map_location=DEVICE,
+                weights_only=True
+            )
+            model.load_state_dict(state_dict)
             model.eval()
             
             return model, vocab
             
         except Exception as e:
             st.error(f"Error loading model: {str(e)}")
+            st.error("Please ensure the model files are accessible on HuggingFace.")
             st.stop()
 
 model, vocab = load_model_and_vocab()
