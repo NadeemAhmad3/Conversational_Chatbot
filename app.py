@@ -293,6 +293,16 @@ st.markdown("""
     .stDeployButton {display: none;}
     #MainMenu {visibility: hidden;}
     .stDecoration {display: none;}
+    /* Final cleanup — remove any zero-height or empty markdown wrappers */
+    div[data-testid="stMarkdownContainer"]:has(> :empty),
+    div[data-testid="stVerticalBlock"]:not(:has(*)),
+    div[data-testid="stHorizontalBlock"]:not(:has(*)) {
+    display: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -653,8 +663,13 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
 # ========== Main Application ==========
 def main():
     # Header
-    st.markdown('<div class="main-header">✨ MIRA</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Your Empathetic AI Companion</div>', unsafe_allow_html=True)
+       st.markdown("""
+        <div style="margin-bottom:1rem;">
+        <div class="main-header">✨ MIRA</div>
+        <div class="subtitle">Your Empathetic AI Companion</div>
+        </div>
+    """, unsafe_allow_html=True)
+
     
     # Load model
     model, vocab, device = load_model_and_vocab()
