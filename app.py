@@ -36,10 +36,12 @@ st.markdown("""
         max-width: 1200px;
     }
     
-    /* Hide empty blocks */
-    .element-container:has(.stMarkdown:empty) {
-        display: none;
-    }
+   .element-container:empty,
+   .element-container:has(.stMarkdown:empty),
+   .stMarkdown:empty,
+    div[data-testid="stVerticalBlock"]:empty {
+    display: none !important;
+}
     
     /* Main header with neon glow */
     .main-header {
