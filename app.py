@@ -4,7 +4,9 @@ import torch.nn as nn
 import math
 import re
 import os
+import json
 from kaggle.api.kaggle_api_extended import KaggleApi
+import getpass  # Not needed, but for completeness
 
 # ========== Page Configuration ==========
 st.set_page_config(
@@ -46,7 +48,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ========== Model Architecture Components ==========
-
+# (Keep all your existing classes unchanged: PositionalEncoding, MultiHeadAttention, PositionwiseFeedforward, EncoderLayer, DecoderLayer, Encoder, Decoder, Seq2SeqTransformer)
 class PositionalEncoding(nn.Module):
     def __init__(self, emb_dim, dropout=0.1, max_len=5000):
         super().__init__()
@@ -216,6 +218,7 @@ class Seq2SeqTransformer(nn.Module):
         return output, attention
 
 # ========== Helper Functions ==========
+# (Keep unchanged: normalize_text, simple_tokenizer)
 
 def normalize_text(text):
     text = str(text).lower()
@@ -229,23 +232,55 @@ def simple_tokenizer(s):
 
 @st.cache_resource
 def download_model_files():
-    """Download model and vocab files from Kaggle dataset"""
+    """Download model and vocab files from Kaggle dataset with explicit auth setup"""
     try:
-        # Authenticate Kaggle API
+        # Step 1: Load secrets and set environment variables (environment method)
+        if "KAGGLE_USERNAME" not in st.secrets or "KAGGLE_KEY" not in st.secrets:
+            raise ValueError("Kaggle secrets not found. Check Streamlit Cloud secrets.")
+        
+        username = st.secrets["KAGGLE_USERNAME"]
+        key = st.secrets["KAGGLE_KEY"]
+        
+        # Debug: Confirm secrets loaded (visible in logs)
+        print(f"Loaded username: {username}")  # Use print for logs; st.write may not show in background
+        
+        os.environ["KAGGLE_USERNAME"] = username
+        os.environ["KAGGLE_KEY"] = key
+        
+        # Step 2: Create kaggle.json file in the expected location (file method as fallback)
+        kaggle_dir = os.path.expanduser("~/.kaggle")
+        os.makedirs(kaggle_dir, exist_ok=True)
+        kaggle_json_path = os.path.join(kaggle_dir, "kaggle.json")
+        
+        kaggle_json = {"username": username, "key": key}
+        with open(kaggle_json_path, "w") as f:
+            json.dump(kaggle_json, f)
+        
+        # Set permissions (secure the file)
+        os.chmod(kaggle_json_path, 0o600)
+        
+        print(f"Created kaggle.json at {kaggle_json_path}")  # Debug log
+        
+        # Step 3: Authenticate and download
         api = KaggleApi()
-        api.authenticate()
+        api.authenticate()  # Now it should find kaggle.json
         
-        # Download dataset (replace with your actual Kaggle dataset path)
-        dataset_name = "nadeemahmad003/chatbot-data"  # Update this with your model dataset
-        
+        dataset_name = "nadeemahmad003/chatbot-data"
         if not os.path.exists("model_files"):
             os.makedirs("model_files")
         
-        # Download all files from the dataset
         api.dataset_download_files(dataset_name, path="model_files", unzip=True)
+        
+        # Step 4: Debug - List downloaded files
+        downloaded_files = os.listdir("model_files")
+        print(f"Downloaded files: {downloaded_files}")  # Check if vocab.pth etc. are there
+        
+        if "vocab.pth" not in downloaded_files:
+            raise FileNotFoundError("vocab.pth not found after download. Check dataset contents.")
         
         return True
     except Exception as e:
+        print(f"Download error details: {str(e)}")  # Detailed log
         st.error(f"Error downloading model files: {str(e)}")
         return False
 
@@ -253,13 +288,14 @@ def download_model_files():
 def load_model_and_vocab():
     """Load the trained model and vocabulary"""
     try:
-        # Set device
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        # Download files if not present
+        # Download if needed
         if not os.path.exists("model_files/vocab.pth"):
             with st.spinner("Downloading model files from Kaggle..."):
-                download_model_files()
+                if not download_model_files():
+                    raise RuntimeError("Download failed.")
+        
+        # Set device
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # Load vocabulary
         vocab = torch.load('model_files/vocab.pth', map_location=device)
@@ -287,6 +323,8 @@ def load_model_and_vocab():
     except Exception as e:
         st.error(f"Error loading model: {str(e)}")
         return None, None, None
+
+# (Keep your existing decoding functions unchanged: greedy_decode, beam_search_decode)
 
 def greedy_decode(model, vocab, src_sentence, device, max_len=50):
     """Greedy decoding for inference"""
@@ -385,6 +423,7 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
     return response
 
 # ========== Main Application ==========
+# (Keep the main() function unchanged, but update the error message to remove redundant instructions since secrets are set)
 
 def main():
     # Header
@@ -395,20 +434,16 @@ def main():
     model, vocab, device = load_model_and_vocab()
     
     if model is None:
-        st.error("Failed to load model. Please check your Kaggle credentials and dataset path.")
-        st.info("To set up Kaggle API credentials on Streamlit Cloud:")
-        st.code("""
-1. Go to Kaggle → Account → API → Create New API Token
-2. This downloads kaggle.json
-3. In Streamlit Cloud:
-   - Go to App Settings → Secrets
-   - Add your credentials:
-     KAGGLE_USERNAME = "your_username"
-     KAGGLE_KEY = "your_api_key"
+        st.error("Failed to load model. Check Streamlit Cloud logs for detailed errors (e.g., authentication or dataset issues).")
+        st.info("""
+If issues persist:
+- Verify your Kaggle API key is valid and the dataset 'nadeemahmad003/chatbot-data' contains 'vocab.pth' and 'best-model-v4-stable.pt'.
+- Ensure the dataset is public or accessible to your account.
+- Try regenerating your Kaggle API token.
         """)
         return
     
-    # Sidebar
+    # Sidebar (unchanged)
     with st.sidebar:
         st.header("⚙️ Settings")
         
