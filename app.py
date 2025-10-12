@@ -288,13 +288,10 @@ st.markdown("""
         box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
     }
     
-    /* Hide default Streamlit elements */
+    /* Hide default streamlit elements */
     .stDeployButton {display: none;}
     #MainMenu {visibility: hidden;}
     .stDecoration {display: none;}
-    .viewerBadge_container__1QSob {display: none !important;}
-    [data-testid="stToolbar"] {display: none !important;}
-    [data-testid="stToolbarActions"] {display: none !important;}
     
     /* Final cleanup — remove any zero-height or empty markdown wrappers */
     div[data-testid="stMarkdownContainer"]:has(> :empty),
@@ -319,13 +316,15 @@ st.markdown("""
         height: 48px !important;
     }
 
-    /* Style the collapsed sidebar button - match app background */
+    /* Style the collapsed sidebar button */
     [data-testid="stSidebarCollapsedControl"] button {
-        background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%) !important;
+        background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
         border: none !important;
         border-radius: 8px !important;
+        color: white !important;
         margin: 0 !important;
         padding: 0 !important;
+        box-shadow: 0 2px 10px rgba(0, 245, 255, 0.3) !important;
         width: 100% !important;
         height: 100% !important;
         display: flex !important;
@@ -335,19 +334,15 @@ st.markdown("""
 
     [data-testid="stSidebarCollapsedControl"] button:hover {
         transform: scale(1.05) !important;
+        box-shadow: 0 4px 15px rgba(0, 245, 255, 0.5) !important;
     }
 
-    /* Ensure only the arrow icon is visible */
+    /* Make sure the icon is visible */
     [data-testid="stSidebarCollapsedControl"] button svg {
         fill: white !important;
         stroke: white !important;
         width: 24px !important;
         height: 24px !important;
-    }
-
-    /* Hide all other buttons/icons in the collapsed control area */
-    [data-testid="stSidebarCollapsedControl"] button:not(:first-child) {
-        display: none !important;
     }
 
     /* Fallback for any nested or alternate toggle classes */
@@ -373,15 +368,6 @@ st.components.v1.html("""
             toggle.style.position = 'fixed';
             toggle.style.top = '20px';
             toggle.style.left = '10px';
-            // Hide all buttons except the first (arrow) and set background
-            const buttons = toggle.querySelectorAll('button');
-            buttons.forEach((btn, index) => {
-                if (index !== 0) {
-                    btn.style.display = 'none';
-                } else {
-                    btn.style.background = 'linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%)';
-                }
-            });
         }
     });
 </script>
