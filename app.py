@@ -663,7 +663,7 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
 # ========== Main Application ==========
 def main():
     # Header
-       st.markdown("""
+     st.markdown("""
         <div style="margin-bottom:1rem;">
         <div class="main-header">✨ MIRA</div>
         <div class="subtitle">Your Empathetic AI Companion</div>
