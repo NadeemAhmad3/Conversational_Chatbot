@@ -294,6 +294,7 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     .stDecoration {display: none;}
     /* Final cleanup — remove any zero-height or empty markdown wrappers */
+    
     div[data-testid="stMarkdownContainer"]:has(> :empty),
     div[data-testid="stVerticalBlock"]:not(:has(*)),
     div[data-testid="stHorizontalBlock"]:not(:has(*)) {
