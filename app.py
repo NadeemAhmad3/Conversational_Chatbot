@@ -29,68 +29,16 @@ st.markdown("""
         background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
     }
     
-    /* Remove default padding and spacing */
+    /* Remove default padding */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 2rem !important;
         padding-bottom: 2rem !important;
         max-width: 1200px;
     }
     
-    /* Remove spacing between elements */
-    div[data-testid="stVerticalBlock"] > div[style*="flex-direction: column;"] > div {
-        gap: 0rem !important;
-    }
-    
-    div[data-testid="stVerticalBlock"] {
-        gap: 0rem !important;
-    }
-    
-    /* Hide all empty elements */
-    .element-container:has(> .stMarkdown:empty),
-    .element-container:empty {
-        display: none !important;
-        height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    
-    /* CRITICAL: Show and style sidebar collapse button when collapsed */
-    button[kind="header"] {
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
-        border-radius: 0 12px 12px 0 !important;
-        padding: 0.75rem !important;
-        margin-top: 1rem !important;
-        box-shadow: 0 4px 15px rgba(0, 245, 255, 0.4) !important;
-        transition: all 0.3s ease !important;
-        border: none !important;
-        color: white !important;
-    }
-    
-    button[kind="header"]:hover {
-        box-shadow: 0 6px 25px rgba(0, 245, 255, 0.7) !important;
-        transform: translateX(3px) !important;
-        background: linear-gradient(135deg, #00d4ff, #6a1fd7) !important;
-    }
-    
-    button[kind="header"] svg {
-        color: #ffffff !important;
-        width: 1.5rem !important;
-        height: 1.5rem !important;
-    }
-    
-    /* Sidebar close button when open */
-    section[data-testid="stSidebar"] button[kind="header"] {
-        color: #00f5ff !important;
-        background: transparent !important;
-        box-shadow: none !important;
-    }
-    
-    section[data-testid="stSidebar"] button[kind="header"]:hover {
-        color: #ffffff !important;
-        background: rgba(0, 245, 255, 0.1) !important;
+    /* Hide empty blocks */
+    .element-container:has(.stMarkdown:empty) {
+        display: none;
     }
     
     /* Main header with neon glow */
@@ -101,21 +49,16 @@ st.markdown("""
         background: linear-gradient(90deg, #00f5ff, #7b2ff7, #f72585);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 0.3rem;
-        margin-top: 0;
-        padding-top: 0;
+        margin-bottom: 0.5rem;
         text-shadow: 0 0 30px rgba(0, 245, 255, 0.5);
         letter-spacing: 2px;
-        line-height: 1.2;
     }
     
     .subtitle {
         text-align: center;
         color: #8892b0;
         font-size: 1rem;
-        margin-bottom: 0;
-        margin-top: 0;
-        padding: 0;
+        margin-bottom: 2rem;
     }
     
     /* Chat container - WhatsApp style */
@@ -123,7 +66,7 @@ st.markdown("""
         background: #0d1117;
         border-radius: 20px;
         padding: 1.5rem;
-        margin: 1rem 0 1rem 0;
+        margin: 1rem 0;
         min-height: 500px;
         max-height: 600px;
         overflow-y: auto;
@@ -332,13 +275,14 @@ st.markdown("""
         background: #0d1117;
         padding: 1.5rem;
         border-radius: 20px;
-        margin-top: 0.5rem;
+        margin-top: 1rem;
         border: 1px solid #30363d;
         box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
     }
     
     /* Hide default streamlit elements */
     .stDeployButton {display: none;}
+    #MainMenu {visibility: hidden;}
     .stDecoration {display: none;}
 </style>
 """, unsafe_allow_html=True)
@@ -699,7 +643,7 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
 
 # ========== Main Application ==========
 def main():
-    # Header - direct markdown without extra containers
+    # Header
     st.markdown('<div class="main-header">✨ MIRA</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Your Empathetic AI Companion</div>', unsafe_allow_html=True)
     
