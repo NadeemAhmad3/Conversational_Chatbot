@@ -1,6 +1,7 @@
 import streamlit as st
 import torch
 import torch.nn as nn
+import torch.serialization
 import math
 import re
 import os
@@ -297,8 +298,11 @@ def load_model_and_vocab():
         # Set device
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
+        # Allowlist torchtext.vocab.vocab.Vocab for safe loading
+        torch.serialization.add_safe_globals(['torchtext.vocab.vocab.Vocab'])
+        
         # Load vocabulary
-        vocab = torch.load('model_files/vocab.pth', map_location=device)
+        vocab = torch.load('model_files/vocab.pth', map_location=device, weights_only=True)
         
         # Model hyperparameters (must match training)
         VOCAB_SIZE = len(vocab)
@@ -316,7 +320,7 @@ def load_model_and_vocab():
         model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, device).to(device)
         
         # Load trained weights
-        model.load_state_dict(torch.load('model_files/best-model-v4-stable.pt', map_location=device))
+        model.load_state_dict(torch.load('model_files/best-model-v4-stable.pt', map_location=device, weights_only=True))
         model.eval()
         
         return model, vocab, device
