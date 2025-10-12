@@ -304,52 +304,37 @@ st.markdown("""
       padding: 0 !important;
     }
     
-        /* Sidebar toggle buttons */
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"],
-.stSidebarCollapsedControl {
-    visibility: visible !important;
-    display: flex !important;
-    opacity: 1 !important;
-    z-index: 10000 !important;
-    position: fixed !important;
-    top: 1rem !important;
-    left: 1rem !important;
-}
+         /* Remove ALL previous sidebar toggle styles and replace with this */
 
-[data-testid="collapsedControl"] button,
-[data-testid="stSidebarCollapsedControl"] button,
-.stSidebarCollapsedControl button {
-    background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
-    border: none !important;
-    border-radius: 8px !important;
-    color: white !important;
-    padding: 0.5rem !important;
-    box-shadow: 0 2px 10px rgba(0, 245, 255, 0.3) !important;
-    transition: all 0.3s ease !important;
-    width: 40px !important;
-    height: 40px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-}
+    /* Force the sidebar toggle to always be visible */
+    section[data-testid="stSidebar"] ~ div .stSidebarCollapsedControl {
+        visibility: visible !important;
+        display: flex !important;
+        opacity: 1 !important;
+    }
 
-[data-testid="collapsedControl"] button:hover,
-[data-testid="stSidebarCollapsedControl"] button:hover,
-.stSidebarCollapsedControl button:hover {
-    transform: scale(1.1) !important;
-    box-shadow: 0 4px 15px rgba(0, 245, 255, 0.5) !important;
-}
+    /* Style the collapsed sidebar button */
+    .stSidebarCollapsedControl button {
+        background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        color: white !important;
+        margin: 8px !important;
+        box-shadow: 0 2px 10px rgba(0, 245, 255, 0.3) !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
+    }
 
-[data-testid="collapsedControl"] button svg,
-[data-testid="stSidebarCollapsedControl"] button svg,
-.stSidebarCollapsedControl button svg {
-    fill: white !important;
-    stroke: white !important;
-    width: 1.5rem !important;
-    height: 1.5rem !important;
-}
+    .stSidebarCollapsedControl button:hover {
+        transform: scale(1.05) !important;
+        box-shadow: 0 4px 15px rgba(0, 245, 255, 0.5) !important;
+    }
+
+    /* Make sure the icon is visible */
+    .stSidebarCollapsedControl button svg {
+        fill: white !important;
+        stroke: white !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
