@@ -682,4 +682,85 @@ def main():
         st.markdown(f"**Model:** Transformer Seq2Seq")
         st.markdown("</div>", unsafe_allow_html=True)
         
-        if st.button("🗑️ Clear Chat", use_container_width
+        if st.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.messages = []
+            st.rerun()
+    
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    # Chat Display Area
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    
+    if len(st.session_state.messages) == 0:
+        st.markdown("""
+        <div class="empty-chat">
+            <div class="empty-chat-icon">💬</div>
+            <p>Start a conversation with Mira</p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        for message in st.session_state.messages:
+            if message["role"] == "user":
+                st.markdown(f"""
+                <div class="chat-message user-message">
+                    <div class="message-label user-label">You</div>
+                    {message["content"]}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="chat-message bot-message">
+                    <div class="message-label bot-label">Mira</div>
+                    {message["content"]}
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Input Section
+    st.markdown('<div class="input-section">', unsafe_allow_html=True)
+    
+    situation = st.text_input("📍 Situation (Optional)", placeholder="Describe the context or situation...", key="situation_input")
+    
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        user_input = st.text_input("💭 Your Message", placeholder="Type your message here...", key="user_input", label_visibility="collapsed")
+    
+    with col2:
+        send_button = st.button("Send", use_container_width=True, type="primary")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Handle message sending
+    if send_button and user_input:
+        normalized_input = normalize_text(user_input)
+        
+        if selected_emotion == "auto":
+            emotion = "neutral"
+        else:
+            emotion = selected_emotion
+        
+        if situation.strip():
+            normalized_situation = normalize_text(situation)
+        else:
+            normalized_situation = "general conversation"
+        
+        input_text = f"Emotion: {emotion} | Situation: {normalized_situation} | Customer: {normalized_input} Agent:"
+        
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        
+        with st.spinner("Mira is thinking..."):
+            if decoding_method == "Greedy Search":
+                response = greedy_decode(model, vocab, input_text, device)
+            else:
+                response = beam_search_decode(model, vocab, input_text, device, beam_width=beam_width)
+        
+        st.session_state.messages.append({"role": "bot", "content": response})
+        
+        st.rerun()
+
+if __name__ == "__main__":
+    main()
