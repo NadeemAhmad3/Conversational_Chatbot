@@ -1,4 +1,5 @@
 # app.py - Empathetic Conversational Chatbot
+# Production-ready version for Streamlit Cloud deployment
 
 import streamlit as st
 import torch
@@ -185,18 +186,17 @@ class Seq2SeqTransformer(nn.Module):
 def load_model_and_vocab():
     """Loads model and vocabulary from HuggingFace."""
     
-    with st.spinner("Loading model and vocabulary from HuggingFace..."):
+    with st.spinner("Loading model and vocabulary from HuggingFace... (This may take a minute)"):
         # HuggingFace direct download URLs
         vocab_url = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/vocab.pth"
         model_url = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/best-model-v4-stable.pt"
         
         try:
             # Download vocabulary
-            vocab_response = requests.get(vocab_url)
+            vocab_response = requests.get(vocab_url, timeout=120)
             vocab_response.raise_for_status()
             
             # Load vocab with weights_only=False (vocab contains custom torchtext class)
-            # This is safe because we trust the source (your own HuggingFace repo)
             vocab = torch.load(
                 BytesIO(vocab_response.content), 
                 map_location=DEVICE,
@@ -212,7 +212,7 @@ def load_model_and_vocab():
             model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, DEVICE).to(DEVICE)
             
             # Download and load model weights
-            model_response = requests.get(model_url)
+            model_response = requests.get(model_url, timeout=120)
             model_response.raise_for_status()
             
             # Load model state dict with weights_only=True (safer for model weights)
@@ -224,13 +224,22 @@ def load_model_and_vocab():
             model.load_state_dict(state_dict)
             model.eval()
             
+            st.success("✅ Model loaded successfully!")
             return model, vocab
             
+        except requests.exceptions.Timeout:
+            st.error("⏱️ Request timed out. Please refresh the page and try again.")
+            st.stop()
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ Network error: {str(e)}")
+            st.error("Please check your internet connection and try again.")
+            st.stop()
         except Exception as e:
-            st.error(f"Error loading model: {str(e)}")
-            st.error("Please ensure the model files are accessible on HuggingFace.")
+            st.error(f"❌ Error loading model: {str(e)}")
+            st.error("Please refresh the page or contact support if the issue persists.")
             st.stop()
 
+# Load model and vocab
 model, vocab = load_model_and_vocab()
 BOS_TOKEN = vocab.lookup_token(BOS_IDX)
 EOS_TOKEN = vocab.lookup_token(EOS_IDX)
@@ -245,6 +254,7 @@ def simple_tokenizer(s):
     return s.split()
 
 def greedy_decode(model, src_sentence, max_len=50):
+    """Greedy decoding strategy."""
     model.eval()
     tokens = simple_tokenizer(src_sentence)
     src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
@@ -272,6 +282,7 @@ def greedy_decode(model, src_sentence, max_len=50):
     return " ".join(trg_tokens)
 
 def beam_search_decode(model, src_sentence, beam_width=3, max_len=50):
+    """Beam search decoding strategy."""
     model.eval()
     tokens = simple_tokenizer(src_sentence)
     src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
@@ -335,18 +346,29 @@ selected_emotion = st.sidebar.selectbox(
 situation_input = st.sidebar.text_area(
     "📝 Describe the Situation:",
     placeholder="Example: I remember going to the fireworks with my best friend...",
-    height=100
+    height=100,
+    help="Provide context about the situation you want to discuss"
 )
 
 decoding_strategy = st.sidebar.radio(
     "🔍 Decoding Strategy:",
-    ("Greedy Search", "Beam Search (k=3)")
+    ("Greedy Search", "Beam Search (k=3)"),
+    help="Greedy is faster, Beam Search may produce better results"
 )
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🗑️ Clear Chat History"):
     st.session_state.messages = [{"role": "assistant", "content": "Hello! How can I help you today?"}]
     st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.info("""
+**How to use:**
+1. Select an emotion that matches your mood
+2. Describe the situation in the text area
+3. Type your message below and press Enter
+4. The chatbot will respond empathetically
+""")
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -375,7 +397,6 @@ if prompt := st.chat_input("Type your message here..."):
         
         with st.spinner("Thinking..."):
             # Construct model input (as per requirements)
-            emotion_token = f"<emotion_{selected_emotion}>"
             input_text = f"Emotion: {selected_emotion} | Situation: {situation_input.strip()} | Customer: {prompt} Agent:"
             
             # Decode
@@ -388,6 +409,10 @@ if prompt := st.chat_input("Type your message here..."):
             clean_response = response.replace(BOS_TOKEN, "").strip()
             if EOS_TOKEN in clean_response:
                 clean_response = clean_response.split(EOS_TOKEN)[0].strip()
+            
+            # Handle empty responses
+            if not clean_response or clean_response == "":
+                clean_response = "I understand. Could you tell me more about that?"
             
             # Typing effect
             full_response = ""
