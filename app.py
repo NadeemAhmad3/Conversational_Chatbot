@@ -298,11 +298,22 @@ def load_model_and_vocab():
         # Set device
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # Allowlist torchtext.vocab.vocab.Vocab for safe loading
+        # Allowlist torchtext.vocab.vocab.Vocab for safety (still included as precaution)
         torch.serialization.add_safe_globals(['torchtext.vocab.vocab.Vocab'])
         
-        # Load vocabulary
-        vocab = torch.load('model_files/vocab.pth', map_location=device, weights_only=True)
+        # Load vocabulary with weights_only=False since it's a Vocab object
+        vocab = torch.load('model_files/vocab.pth', map_location=device, weights_only=False)
+        
+        # Debug: Log the type of vocab
+        print(f"Type of loaded vocab: {type(vocab)}")  # Will appear in Streamlit Cloud logs
+        
+        # Check if vocab is a string (unexpected)
+        if isinstance(vocab, str):
+            raise ValueError(f"Expected a torchtext.vocab.vocab.Vocab object, but loaded a string: {vocab}")
+        
+        # Verify vocab is the expected type
+        if not hasattr(vocab, '__getitem__'):  # Basic check for Vocab-like behavior
+            raise ValueError(f"Loaded vocab object is not usable as a vocabulary: {type(vocab)}")
         
         # Model hyperparameters (must match training)
         VOCAB_SIZE = len(vocab)
@@ -319,12 +330,13 @@ def load_model_and_vocab():
         decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, device)
         model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, device).to(device)
         
-        # Load trained weights
+        # Load trained weights with weights_only=True (since it's a state_dict)
         model.load_state_dict(torch.load('model_files/best-model-v4-stable.pt', map_location=device, weights_only=True))
         model.eval()
         
         return model, vocab, device
     except Exception as e:
+        print(f"Error loading model details: {str(e)}")  # Detailed log
         st.error(f"Error loading model: {str(e)}")
         return None, None, None
 
