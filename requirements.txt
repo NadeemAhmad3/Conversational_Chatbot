@@ -3,5 +3,5 @@
 streamlit
 requests
 
-# Install the CPU-only version of PyTorch for faster deployment on Streamlit Cloud
-torch --index-url https://download.pytorch.org/whl/cpu
+# Pin a specific, stable CPU-only version of PyTorch for reproducibility
+torch==2.3.1 --index-url https://download.pytorch.org/whl/cpu
