@@ -7,49 +7,287 @@ import re
 import os
 import json
 from kaggle.api.kaggle_api_extended import KaggleApi
-import getpass  # Not needed, but for completeness
 
 # ========== Page Configuration ==========
 st.set_page_config(
-    page_title="Empathetic Chatbot",
-    page_icon="💬",
-    layout="wide"
+    page_title="Mira - Empathetic AI",
+    page_icon="✨",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ========== Custom CSS for Better UI ==========
+# ========== Enhanced Custom CSS with Dark Theme & Neon Accents ==========
 st.markdown("""
 <style>
+    /* Remove default Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Global dark theme */
+    .stApp {
+        background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+    }
+    
+    /* Remove default padding */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 1200px;
+    }
+    
+    /* Hide empty blocks */
+    .element-container:has(.stMarkdown:empty) {
+        display: none;
+    }
+    
+    /* Main header with neon glow */
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
+        font-size: 2.8rem;
+        font-weight: 800;
         text-align: center;
-        color: #1f77b4;
-        margin-bottom: 1rem;
+        background: linear-gradient(90deg, #00f5ff, #7b2ff7, #f72585);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+        text-shadow: 0 0 30px rgba(0, 245, 255, 0.5);
+        letter-spacing: 2px;
     }
-    .chat-message {
-        padding: 1rem;
+    
+    .subtitle {
+        text-align: center;
+        color: #8892b0;
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    /* Chat container - WhatsApp style */
+    .chat-container {
+        background: #0d1117;
+        border-radius: 20px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        min-height: 500px;
+        max-height: 600px;
+        overflow-y: auto;
+        border: 1px solid #30363d;
+        box-shadow: 0 8px 32px rgba(0, 245, 255, 0.1);
+    }
+    
+    /* Custom scrollbar */
+    .chat-container::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    .chat-container::-webkit-scrollbar-track {
+        background: #161b22;
         border-radius: 10px;
-        margin: 0.5rem 0;
     }
+    
+    .chat-container::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #00f5ff, #7b2ff7);
+        border-radius: 10px;
+    }
+    
+    /* Message bubbles */
+    .chat-message {
+        padding: 1rem 1.2rem;
+        border-radius: 18px;
+        margin: 0.8rem 0;
+        max-width: 75%;
+        animation: fadeIn 0.3s ease-in;
+        word-wrap: break-word;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
     .user-message {
-        background-color: #e3f2fd;
+        background: linear-gradient(135deg, #7b2ff7, #f72585);
+        margin-left: auto;
+        color: #ffffff;
+        box-shadow: 0 4px 15px rgba(123, 47, 247, 0.3);
+        border-bottom-right-radius: 4px;
+    }
+    
+    .bot-message {
+        background: linear-gradient(135deg, #1e2a3a, #2d3748);
+        margin-right: auto;
+        color: #e2e8f0;
+        border: 1px solid #30363d;
+        box-shadow: 0 4px 15px rgba(0, 245, 255, 0.1);
+        border-bottom-left-radius: 4px;
+    }
+    
+    .message-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+        opacity: 0.8;
+    }
+    
+    .user-label {
+        color: #ffd6f3;
         text-align: right;
     }
-    .bot-message {
-        background-color: #f0f0f0;
-        text-align: left;
+    
+    .bot-label {
+        color: #00f5ff;
     }
+    
+    /* Input area styling */
+    .stTextInput > div > div > input {
+        background: #161b22 !important;
+        border: 2px solid #30363d !important;
+        border-radius: 12px !important;
+        color: #e2e8f0 !important;
+        padding: 0.8rem 1rem !important;
+        font-size: 1rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #00f5ff !important;
+        box-shadow: 0 0 20px rgba(0, 245, 255, 0.3) !important;
+    }
+    
+    .stTextInput > label {
+        color: #8892b0 !important;
+        font-weight: 600 !important;
+        font-size: 0.9rem !important;
+    }
+    
+    /* Button styling with neon glow */
+    .stButton > button {
+        background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 0.6rem 1.5rem !important;
+        font-weight: 700 !important;
+        font-size: 1rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 20px rgba(0, 245, 255, 0.4) !important;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 30px rgba(0, 245, 255, 0.6) !important;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+        border-right: 1px solid #30363d;
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown {
+        color: #e2e8f0;
+    }
+    
+    /* Sidebar header */
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3 {
+        color: #00f5ff !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Selectbox styling */
+    .stSelectbox > div > div {
+        background: #161b22 !important;
+        border: 2px solid #30363d !important;
+        border-radius: 10px !important;
+        color: #e2e8f0 !important;
+    }
+    
+    .stSelectbox label {
+        color: #8892b0 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Radio buttons */
+    .stRadio > label {
+        color: #8892b0 !important;
+        font-weight: 600 !important;
+    }
+    
+    .stRadio > div {
+        color: #e2e8f0 !important;
+    }
+    
+    /* Slider */
+    .stSlider > label {
+        color: #8892b0 !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Info box in sidebar */
     .sidebar-info {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 5px;
-        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #1e2a3a, #2d3748);
+        padding: 1.2rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        border: 1px solid #30363d;
+        box-shadow: 0 4px 15px rgba(0, 245, 255, 0.1);
     }
+    
+    .sidebar-info p {
+        color: #8892b0 !important;
+        margin: 0.3rem 0 !important;
+        font-size: 0.9rem;
+    }
+    
+    .sidebar-info strong {
+        color: #00f5ff !important;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: #30363d !important;
+        opacity: 0.3;
+    }
+    
+    /* Spinner */
+    .stSpinner > div {
+        border-color: #00f5ff transparent transparent transparent !important;
+    }
+    
+    /* Empty state message */
+    .empty-chat {
+        text-align: center;
+        padding: 3rem;
+        color: #8892b0;
+    }
+    
+    .empty-chat-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    /* Input container */
+    .input-section {
+        background: #0d1117;
+        padding: 1.5rem;
+        border-radius: 20px;
+        margin-top: 1rem;
+        border: 1px solid #30363d;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Hide default streamlit elements */
+    .stDeployButton {display: none;}
+    #MainMenu {visibility: hidden;}
+    .stDecoration {display: none;}
 </style>
 """, unsafe_allow_html=True)
 
 # ========== Model Architecture Components ==========
-# (Keep all your existing classes unchanged: PositionalEncoding, MultiHeadAttention, PositionwiseFeedforward, EncoderLayer, DecoderLayer, Encoder, Decoder, Seq2SeqTransformer)
 class PositionalEncoding(nn.Module):
     def __init__(self, emb_dim, dropout=0.1, max_len=5000):
         super().__init__()
@@ -219,8 +457,6 @@ class Seq2SeqTransformer(nn.Module):
         return output, attention
 
 # ========== Helper Functions ==========
-# (Keep unchanged: normalize_text, simple_tokenizer)
-
 def normalize_text(text):
     text = str(text).lower()
     text = re.sub(r'\s+', ' ', text).strip()
@@ -233,22 +469,17 @@ def simple_tokenizer(s):
 
 @st.cache_resource
 def download_model_files():
-    """Download model and vocab files from Kaggle dataset with explicit auth setup"""
+    """Download model and vocab files from Kaggle dataset"""
     try:
-        # Step 1: Load secrets and set environment variables (environment method)
         if "KAGGLE_USERNAME" not in st.secrets or "KAGGLE_KEY" not in st.secrets:
             raise ValueError("Kaggle secrets not found. Check Streamlit Cloud secrets.")
         
         username = st.secrets["KAGGLE_USERNAME"]
         key = st.secrets["KAGGLE_KEY"]
         
-        # Debug: Confirm secrets loaded (visible in logs)
-        print(f"Loaded username: {username}")  # Use print for logs; st.write may not show in background
-        
         os.environ["KAGGLE_USERNAME"] = username
         os.environ["KAGGLE_KEY"] = key
         
-        # Step 2: Create kaggle.json file in the expected location (file method as fallback)
         kaggle_dir = os.path.expanduser("~/.kaggle")
         os.makedirs(kaggle_dir, exist_ok=True)
         kaggle_json_path = os.path.join(kaggle_dir, "kaggle.json")
@@ -257,14 +488,10 @@ def download_model_files():
         with open(kaggle_json_path, "w") as f:
             json.dump(kaggle_json, f)
         
-        # Set permissions (secure the file)
         os.chmod(kaggle_json_path, 0o600)
         
-        print(f"Created kaggle.json at {kaggle_json_path}")  # Debug log
-        
-        # Step 3: Authenticate and download
         api = KaggleApi()
-        api.authenticate()  # Now it should find kaggle.json
+        api.authenticate()
         
         dataset_name = "nadeemahmad003/chatbot-data"
         if not os.path.exists("model_files"):
@@ -272,16 +499,13 @@ def download_model_files():
         
         api.dataset_download_files(dataset_name, path="model_files", unzip=True)
         
-        # Step 4: Debug - List downloaded files
         downloaded_files = os.listdir("model_files")
-        print(f"Downloaded files: {downloaded_files}")  # Check if vocab.pth etc. are there
         
         if "vocab.pth" not in downloaded_files:
-            raise FileNotFoundError("vocab.pth not found after download. Check dataset contents.")
+            raise FileNotFoundError("vocab.pth not found after download.")
         
         return True
     except Exception as e:
-        print(f"Download error details: {str(e)}")  # Detailed log
         st.error(f"Error downloading model files: {str(e)}")
         return False
 
@@ -289,30 +513,21 @@ def download_model_files():
 def load_model_and_vocab():
     """Load the trained model and vocabulary"""
     try:
-        # Download if needed
         if not os.path.exists("model_files/vocab.pth"):
             with st.spinner("Downloading model files from Kaggle..."):
                 if not download_model_files():
                     raise RuntimeError("Download failed.")
         
-        # Set device
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # Load vocabulary with weights_only=False since it's a Vocab object
         vocab = torch.load('model_files/vocab.pth', map_location=device, weights_only=False)
         
-        # Debug: Log the type of vocab
-        print(f"Type of loaded vocab: {type(vocab)}")  # Will appear in Streamlit Cloud logs
-        
-        # Check if vocab is a string (unexpected)
         if isinstance(vocab, str):
-            raise ValueError(f"Expected a torchtext.vocab.vocab.Vocab object, but loaded a string: {vocab}")
+            raise ValueError(f"Expected vocab object, but loaded a string: {vocab}")
         
-        # Verify vocab is usable
         if not hasattr(vocab, '__getitem__'):
-            raise ValueError(f"Loaded vocab object is not usable as a vocabulary: {type(vocab)}")
+            raise ValueError(f"Loaded vocab object is not usable: {type(vocab)}")
         
-        # Model hyperparameters (must match training)
         VOCAB_SIZE = len(vocab)
         EMBED_DIM = 512
         NUM_HEADS = 4
@@ -322,22 +537,17 @@ def load_model_and_vocab():
         FF_DIM = 4 * EMBED_DIM
         PAD_IDX = 1
         
-        # Initialize model
         encoder = Encoder(VOCAB_SIZE, EMBED_DIM, NUM_ENCODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, device)
         decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, device)
         model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, device).to(device)
         
-        # Load trained weights with weights_only=True (since it's a state_dict)
         model.load_state_dict(torch.load('model_files/best-model-v4-stable.pt', map_location=device, weights_only=True))
         model.eval()
         
         return model, vocab, device
     except Exception as e:
-        print(f"Error loading model details: {str(e)}")  # Detailed log
         st.error(f"Error loading model: {str(e)}")
         return None, None, None
-
-# (Keep your existing decoding functions unchanged: greedy_decode, beam_search_decode)
 
 def greedy_decode(model, vocab, src_sentence, device, max_len=50):
     """Greedy decoding for inference"""
@@ -371,8 +581,6 @@ def greedy_decode(model, vocab, src_sentence, device, max_len=50):
     
     trg_tokens = vocab.lookup_tokens(trg_indexes)
     response = " ".join(trg_tokens)
-    
-    # Clean response
     response = response.replace("<bos>", "").replace("<eos>", "").strip()
     
     return response
@@ -429,128 +637,49 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
     
     trg_tokens = vocab.lookup_tokens(best_seq)
     response = " ".join(trg_tokens)
-    
-    # Clean response
     response = response.replace("<bos>", "").replace("<eos>", "").strip()
     
     return response
 
 # ========== Main Application ==========
-# (Keep the main() function unchanged, but update the error message to remove redundant instructions since secrets are set)
-
 def main():
     # Header
-    st.markdown('<div class="main-header">💬 Empathetic Conversational Chatbot</div>', unsafe_allow_html=True)
-    st.markdown("---")
+    st.markdown('<div class="main-header">✨ MIRA</div>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">Your Empathetic AI Companion</div>', unsafe_allow_html=True)
     
     # Load model
     model, vocab, device = load_model_and_vocab()
     
     if model is None:
-        st.error("Failed to load model. Check Streamlit Cloud logs for detailed errors (e.g., authentication or dataset issues).")
-        st.info("""
-If issues persist:
-- Verify your Kaggle API key is valid and the dataset 'nadeemahmad003/chatbot-data' contains 'vocab.pth' and 'best-model-v4-stable.pt'.
-- Ensure the dataset is public or accessible to your account.
-- Try regenerating your Kaggle API token.
-        """)
+        st.error("Failed to load model. Check Streamlit Cloud logs for errors.")
+        st.info("Verify Kaggle credentials and dataset accessibility.")
         return
     
-    # Sidebar (unchanged)
+    # Sidebar Settings
     with st.sidebar:
-        st.header("⚙️ Settings")
+        st.markdown("### ⚙️ Settings")
+        st.markdown("---")
         
-        # Emotion selection
         emotions = ["afraid", "angry", "annoyed", "anticipating", "anxious", "apprehensive", 
                    "ashamed", "caring", "confident", "content", "devastated", "disappointed",
                    "disgusted", "embarrassed", "excited", "faithful", "furious", "grateful",
                    "guilty", "hopeful", "impressed", "jealous", "joyful", "lonely", "nostalgic",
                    "prepared", "proud", "sad", "sentimental", "surprised", "terrified", "trusting"]
         
-        selected_emotion = st.selectbox("Select Emotion (Optional)", ["auto"] + emotions)
+        selected_emotion = st.selectbox("Emotion Context", ["auto"] + emotions)
         
-        # Decoding strategy
         decoding_method = st.radio("Decoding Strategy", ["Greedy Search", "Beam Search"])
         
+        beam_width = 3
         if decoding_method == "Beam Search":
             beam_width = st.slider("Beam Width", 2, 5, 3)
         
         st.markdown("---")
+        
         st.markdown('<div class="sidebar-info">', unsafe_allow_html=True)
-        st.markdown("**About this Chatbot:**")
-        st.markdown("This is a Transformer-based empathetic chatbot trained from scratch.")
-        st.markdown(f"- Device: {device}")
-        st.markdown(f"- Vocab Size: {len(vocab)}")
+        st.markdown(f"**Device:** {device}")
+        st.markdown(f"**Vocab Size:** {len(vocab):,}")
+        st.markdown(f"**Model:** Transformer Seq2Seq")
         st.markdown("</div>", unsafe_allow_html=True)
         
-        # Clear conversation
-        if st.button("🗑️ Clear Conversation"):
-            st.session_state.messages = []
-            st.rerun()
-    
-    # Initialize chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    
-    # Display chat history
-    for message in st.session_state.messages:
-        if message["role"] == "user":
-            st.markdown(f'<div class="chat-message user-message">👤 You: {message["content"]}</div>', 
-                       unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div class="chat-message bot-message">🤖 Agent: {message["content"]}</div>', 
-                       unsafe_allow_html=True)
-    
-    # Chat input
-    col1, col2 = st.columns([4, 1])
-    
-    with col1:
-        situation = st.text_input("Situation (Optional):", placeholder="Describe the situation...")
-    
-    with col2:
-        st.write("")  # Spacing
-    
-    user_input = st.text_input("Your Message:", placeholder="Type your message here...", key="user_input")
-    
-    col1, col2, col3 = st.columns([1, 1, 3])
-    
-    with col1:
-        send_button = st.button("Send 📤", use_container_width=True)
-    
-    if send_button and user_input:
-        # Normalize input
-        normalized_input = normalize_text(user_input)
-        
-        # Determine emotion
-        if selected_emotion == "auto":
-            emotion = "neutral"
-        else:
-            emotion = selected_emotion
-        
-        # Prepare situation
-        if situation.strip():
-            normalized_situation = normalize_text(situation)
-        else:
-            normalized_situation = "general conversation"
-        
-        # Create input text
-        input_text = f"Emotion: {emotion} | Situation: {normalized_situation} | Customer: {normalized_input} Agent:"
-        
-        # Add user message to history
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        
-        # Generate response
-        with st.spinner("Generating response..."):
-            if decoding_method == "Greedy Search":
-                response = greedy_decode(model, vocab, input_text, device)
-            else:
-                response = beam_search_decode(model, vocab, input_text, device, beam_width=beam_width)
-        
-        # Add bot response to history
-        st.session_state.messages.append({"role": "bot", "content": response})
-        
-        # Rerun to update chat
-        st.rerun()
-
-if __name__ == "__main__":
-    main()
+        if st.button("🗑️ Clear Chat", use_container_width
