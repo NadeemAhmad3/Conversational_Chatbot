@@ -304,23 +304,22 @@ st.markdown("""
       padding: 0 !important;
     }
     
-       /* Sidebar toggle button - when sidebar is EXPANDED */
-    [data-testid="collapsedControl"] {
+         /* Sidebar toggle buttons - COMPREHENSIVE SOLUTION */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"],
+    .stSidebarCollapsedControl,
+    .css-1d391kg {
         visibility: visible !important;
         display: flex !important;
         opacity: 1 !important;
+        z-index: 999999 !important;
     }
 
-    /* Sidebar toggle button - when sidebar is COLLAPSED */
-    [data-testid="stSidebarCollapsedControl"] {
-        visibility: visible !important;
-        display: flex !important;
-        opacity: 1 !important;
-    }
-
-    /* Style ALL sidebar toggle buttons */
+    /* Style ALL possible sidebar toggle buttons */
     [data-testid="collapsedControl"] button,
-    [data-testid="stSidebarCollapsedControl"] button {
+    [data-testid="stSidebarCollapsedControl"] button,
+    .stSidebarCollapsedControl button,
+    .css-1d391kg button {
         background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
         border: none !important;
         border-radius: 8px !important;
@@ -330,23 +329,30 @@ st.markdown("""
         transition: all 0.3s ease !important;
         min-width: 40px !important;
         min-height: 40px !important;
+        position: fixed !important;
+        left: 0.5rem !important;
+        top: 0.5rem !important;
+        z-index: 999999 !important;
     }
 
     [data-testid="collapsedControl"] button:hover,
-    [data-testid="stSidebarCollapsedControl"] button:hover {
+    [data-testid="stSidebarCollapsedControl"] button:hover,
+    .stSidebarCollapsedControl button:hover,
+    .css-1d391kg button:hover {
         transform: scale(1.05) !important;
         box-shadow: 0 4px 15px rgba(0, 245, 255, 0.5) !important;
     }
 
     /* Ensure the button icons are visible */
     [data-testid="collapsedControl"] button svg,
-    [data-testid="stSidebarCollapsedControl"] button svg {
+    [data-testid="stSidebarCollapsedControl"] button svg,
+    .stSidebarCollapsedControl button svg,
+    .css-1d391kg button svg {
         fill: white !important;
         stroke: white !important;
         width: 1.5rem !important;
         height: 1.5rem !important;
     }
-
 
 </style>
 """, unsafe_allow_html=True)
