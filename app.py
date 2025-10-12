@@ -665,6 +665,13 @@ def main():
     # Header
     st.markdown('<div class="main-header">✨ MIRA</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Your Empathetic AI Companion</div>', unsafe_allow_html=True)
+    st.markdown("""
+      <div style="margin-bottom:1rem;">
+         <div class="main-header">✨ MIRA</div>
+         <div class="subtitle">Your Empathetic AI Companion</div>
+      </div>
+    """, unsafe_allow_html=True)
+
     
     # Load model
     model, vocab, device = load_model_and_vocab()
@@ -782,5 +789,4 @@ def main():
         st.rerun()
 
 if __name__ == "__main__":
-    main()are you able to remove empty blocks in this code. especially whic come after ✨ MIRA
-Your Empathetic AI Companion
+    main()
