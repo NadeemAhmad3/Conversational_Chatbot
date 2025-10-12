@@ -36,9 +36,50 @@ st.markdown("""
         max-width: 1200px;
     }
     
-    /* Hide empty blocks */
+    /* Hide empty blocks and containers */
     .element-container:has(.stMarkdown:empty) {
-        display: none;
+        display: none !important;
+    }
+    
+    .element-container:empty {
+        display: none !important;
+    }
+    
+    div[data-testid="stVerticalBlock"] > div:empty {
+        display: none !important;
+    }
+    
+    /* Show sidebar collapse button */
+    [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 0.5rem !important;
+        margin-top: 1rem !important;
+        box-shadow: 0 4px 15px rgba(0, 245, 255, 0.4) !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    [data-testid="collapsedControl"]:hover {
+        box-shadow: 0 6px 20px rgba(0, 245, 255, 0.6) !important;
+        transform: translateX(2px) !important;
+    }
+    
+    [data-testid="collapsedControl"] svg {
+        color: #ffffff !important;
+        width: 1.2rem !important;
+        height: 1.2rem !important;
+    }
+    
+    /* Sidebar toggle button when sidebar is open */
+    [data-testid="stSidebarCollapse"] {
+        color: #00f5ff !important;
+    }
+    
+    [data-testid="stSidebarCollapse"]:hover {
+        color: #ffffff !important;
     }
     
     /* Main header with neon glow */
@@ -58,7 +99,7 @@ st.markdown("""
         text-align: center;
         color: #8892b0;
         font-size: 1rem;
-        margin-bottom: 2rem;
+        margin-bottom: 0rem;
     }
     
     /* Chat container - WhatsApp style */
@@ -66,7 +107,7 @@ st.markdown("""
         background: #0d1117;
         border-radius: 20px;
         padding: 1.5rem;
-        margin: 1rem 0;
+        margin: 1.5rem 0 1rem 0;
         min-height: 500px;
         max-height: 600px;
         overflow-y: auto;
@@ -643,9 +684,11 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
 
 # ========== Main Application ==========
 def main():
-    # Header
-    st.markdown('<div class="main-header">✨ MIRA</div>', unsafe_allow_html=True)
-    st.markdown('<div class="subtitle">Your Empathetic AI Companion</div>', unsafe_allow_html=True)
+    # Header - using columns to eliminate spacing
+    col_header = st.columns(1)[0]
+    with col_header:
+        st.markdown('<div class="main-header">✨ MIRA</div>', unsafe_allow_html=True)
+        st.markdown('<div class="subtitle">Your Empathetic AI Companion</div>', unsafe_allow_html=True)
     
     # Load model
     model, vocab, device = load_model_and_vocab()
