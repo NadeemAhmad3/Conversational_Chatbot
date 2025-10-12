@@ -1,4 +1,4 @@
-# app.py - Your Streamlit Chatbot Application
+# app.py - Final Corrected Streamlit Chatbot Application
 
 import streamlit as st
 import torch
@@ -6,25 +6,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 import time
-from collections import Counter
+import re
+import os
+import requests
 
 # --- 1. DEFINE THE ENTIRE MODEL ARCHITECTURE ---
-# (We must redefine the model classes here so torch.load knows their structure)
+# (This section is unchanged, it defines the model classes)
 
 # --- Model Hyperparameters (Must match the trained model) ---
-VOCAB_SIZE = 16812 # Update this with your final vocab size
+VOCAB_SIZE = 16812 # Placeholder, will be updated
 EMBED_DIM = 512
 NUM_HEADS = 4
 NUM_ENCODER_LAYERS = 3
 NUM_DECODER_LAYERS = 3
 DROPOUT = 0.1
 FF_DIM = 4 * EMBED_DIM
-
-DEVICE = torch.device('cpu') # Run on CPU locally
-
-# --- Special Token Indices ---
+DEVICE = torch.device('cpu')
 UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
 
+# --- Paste all your model classes here ---
 class PositionalEncoding(nn.Module):
     def __init__(self, emb_dim: int, dropout: float = 0.1, max_len: int = 5000):
         super().__init__()
@@ -145,137 +145,192 @@ class Seq2SeqTransformer(nn.Module):
         enc_src = self.encoder(src, src_mask)
         return self.decoder(trg, enc_src, trg_mask, src_mask)
 
-# --- 2. LOAD MODEL AND VOCABULARY ---
+# --- 2. FILE HANDLING AND MODEL LOADING ---
 
-@st.cache_resource  # Cache the model and vocab for efficiency
+### CRITICAL CHANGE ###
+# Using a static, hardcoded list of the 32 emotions from the dataset.
+# This is robust and prevents non-emotion text from appearing in the list.
+EMOTION_LIST = [
+    'afraid', 'angry', 'annoyed', 'anticipating', 'anxious', 'apprehensive',
+    'ashamed', 'caring', 'confident', 'content', 'devastated', 'disappointed',
+    'disgusted', 'embarrassed', 'excited', 'faithful', 'furious', 'grateful',
+    'guilty', 'hopeful', 'impressed', 'jealous', 'joyful', 'lonely', 'nostalgic',
+    'prepared', 'proud', 'sad', 'sentimental', 'surprised', 'terrified', 'trusting'
+]
+
+@st.cache_resource
 def load_model_and_vocab():
-    """Loads the saved model and vocabulary."""
-    # Load the vocabulary
-    vocab = torch.load('vocab.pth')
-    
-    # IMPORTANT: Update VOCAB_SIZE based on the loaded vocab
-    # This ensures the model architecture matches the saved weights
-    global VOCAB_SIZE
-    VOCAB_SIZE = len(vocab)
-    
-    # Instantiate the model with the correct vocab size
-    encoder = Encoder(VOCAB_SIZE, EMBED_DIM, NUM_ENCODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
-    decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
-    model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, DEVICE).to(DEVICE)
-    
-    # Load the trained model weights
-    model.load_state_dict(torch.load('best-model-v4-stable.pt', map_location=DEVICE))
-    model.eval()
-    
-    return model, vocab
+    """
+    Downloads model files from a public URL if they don't exist locally,
+    then loads the model and vocabulary.
+    """
+    # --- ACTION REQUIRED: Paste your direct download URLs here ---
+    # Example from Hugging Face Hub:
+    MODEL_URL = "https://huggingface.co/Nadeemoo3/Chatbot/blob/main/best-model-v4-stable.pt"
+    VOCAB_URL = "https://huggingface.co/Nadeemoo3/Chatbot/blob/main/vocab.pth"
+
+    MODEL_PATH = "best-model-v4-stable.pt"
+    VOCAB_PATH = "vocab.pth"
+
+    def download_file(url, filename):
+        if not os.path.exists(filename):
+            st.info(f"Downloading required file: {filename}...")
+            try:
+                response = requests.get(url, stream=True)
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
+                progress_bar = st.progress(0)
+                
+                with open(filename, 'wb') as f:
+                    downloaded_size = 0
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        downloaded_size += len(chunk)
+                        progress = int((downloaded_size / total_size) * 100) if total_size > 0 else 0
+                        progress_bar.progress(progress)
+                progress_bar.empty()
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error downloading {filename}: {e}")
+                return False
+        return True
+
+    if not download_file(MODEL_URL, MODEL_PATH) or not download_file(VOCAB_URL, VOCAB_PATH):
+        st.error("Could not download necessary model files. The app cannot continue.")
+        st.stop()
+
+    try:
+        vocab = torch.load(VOCAB_PATH)
+        global VOCAB_SIZE
+        VOCAB_SIZE = len(vocab)
+        
+        encoder = Encoder(VOCAB_SIZE, EMBED_DIM, NUM_ENCODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
+        decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
+        model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, DEVICE).to(DEVICE)
+        
+        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+        model.eval()
+        
+        return model, vocab
+    except Exception as e:
+        st.error(f"Failed to load the model or vocabulary. Error: {e}")
+        return None, None
 
 model, vocab = load_model_and_vocab()
-BOS_TOKEN, EOS_TOKEN = vocab.lookup_token(BOS_IDX), vocab.lookup_token(EOS_IDX)
+if model and vocab:
+    BOS_TOKEN, EOS_TOKEN = vocab.lookup_tokens([BOS_IDX, EOS_IDX])
+else:
+    st.stop()
 
-# List of emotions for the sidebar
-EMOTION_LIST = [emo.replace('<emotion_', '').replace('>', '') for emo in vocab.get_itos() if emo.startswith('<emotion_')]
+# --- 3. INFERENCE AND TEXT PROCESSING FUNCTIONS ---
 
-# --- 3. INFERENCE FUNCTIONS ---
+def normalize_text(text):
+    text = str(text).lower()
+    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"([?.!,])", r" \1 ", text)
+    text = re.sub(r'[" "]+', " ", text)
+    return text
 
-def simple_tokenizer(s):
-    return s.split()
-
-def greedy_decode(model, src_sentence, max_len=50):
+def generate_response(model, src_sentence, decoding_strategy="Greedy Search", beam_width=3, max_len=50):
     model.eval()
-    tokens = simple_tokenizer(src_sentence)
+    normalized_sentence = normalize_text(src_sentence)
+    tokens = [token for token in normalized_sentence.split() if token in vocab]
+    
     src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
     src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(DEVICE)
     src_mask = model.make_src_mask(src_tensor)
-    with torch.no_grad(): enc_src = model.encoder(src_tensor, src_mask)
-    trg_indexes = [BOS_IDX]
-    for i in range(max_len):
-        trg_tensor = torch.LongTensor(trg_indexes).unsqueeze(0).to(DEVICE)
-        trg_mask = model.make_trg_mask(trg_tensor)
-        with torch.no_grad(): output, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
-        pred_token_idx = output.argmax(2)[:, -1].item()
-        trg_indexes.append(pred_token_idx)
-        if pred_token_idx == EOS_IDX: break
-    trg_tokens = vocab.lookup_tokens(trg_indexes)
-    return " ".join(trg_tokens)
 
-def beam_search_decode(model, src_sentence, beam_width=3, max_len=50):
-    model.eval()
-    tokens = simple_tokenizer(src_sentence)
-    src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
-    src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(DEVICE)
-    src_mask = model.make_src_mask(src_tensor)
-    with torch.no_grad(): enc_src = model.encoder(src_tensor, src_mask)
-    beams = [([BOS_IDX], 0.0)]
-    completed_beams = []
-    for _ in range(max_len):
-        new_beams = []
-        for seq, score in beams:
-            if seq[-1] == EOS_IDX:
-                completed_beams.append((seq, score))
-                continue
-            trg_tensor = torch.LongTensor(seq).unsqueeze(0).to(DEVICE)
+    with torch.no_grad():
+        enc_src = model.encoder(src_tensor, src_mask)
+
+    if decoding_strategy == "Greedy Search":
+        trg_indexes = [BOS_IDX]
+        for _ in range(max_len):
+            trg_tensor = torch.LongTensor(trg_indexes).unsqueeze(0).to(DEVICE)
             trg_mask = model.make_trg_mask(trg_tensor)
-            with torch.no_grad(): output, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
-            log_probs = F.log_softmax(output[:, -1, :], dim=-1)
-            top_log_probs, top_idxs = torch.topk(log_probs, beam_width)
-            for i in range(beam_width):
-                new_seq = seq + [top_idxs[0][i].item()]
-                new_score = score + top_log_probs[0][i].item()
-                new_beams.append((new_seq, new_score))
-        if not new_beams: break
-        beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_width]
-    completed_beams.extend(beams)
-    best_beam = sorted(completed_beams, key=lambda x: x[1] / len(x[0]), reverse=True)[0]
-    trg_tokens = vocab.lookup_tokens(best_beam[0])
+            with torch.no_grad():
+                output, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
+            pred_token_idx = output.argmax(2)[:, -1].item()
+            trg_indexes.append(pred_token_idx)
+            if pred_token_idx == EOS_IDX:
+                break
+        final_indices = trg_indexes
+    else: # Beam Search
+        beams = [([BOS_IDX], 0.0)]
+        completed_beams = []
+        for _ in range(max_len):
+            new_beams = []
+            all_done = True
+            for seq, score in beams:
+                if seq[-1] == EOS_IDX:
+                    completed_beams.append((seq, score))
+                    continue
+                all_done = False
+                trg_tensor = torch.LongTensor(seq).unsqueeze(0).to(DEVICE)
+                trg_mask = model.make_trg_mask(trg_tensor)
+                with torch.no_grad():
+                    output, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
+                log_probs = F.log_softmax(output[:, -1, :], dim=-1)
+                top_log_probs, top_idxs = torch.topk(log_probs, beam_width)
+                for i in range(beam_width):
+                    new_seq = seq + [top_idxs[0][i].item()]
+                    new_score = score + top_log_probs[0][i].item()
+                    new_beams.append((new_seq, new_score))
+            if all_done:
+                break
+            beams = sorted(new_beams, key=lambda x: x[1], reverse=True)[:beam_width]
+        completed_beams.extend(beams)
+        best_beam = sorted(completed_beams, key=lambda x: x[1] / len(x[0] if len(x[0]) > 0 else 1), reverse=True)[0]
+        final_indices = best_beam[0]
+
+    trg_tokens = vocab.lookup_tokens(final_indices)
     return " ".join(trg_tokens)
 
 # --- 4. STREAMLIT UI ---
 
-st.title("💬 Empathetic Chatbot")
-st.caption("A Transformer-based chatbot built from scratch")
+st.set_page_config(page_title="Empathetic Chatbot", layout="wide")
 
-# Sidebar for options
-st.sidebar.header("Chat Options")
-selected_emotion = st.sidebar.selectbox("Choose an emotion for the bot:", EMOTION_LIST)
-decoding_strategy = st.sidebar.radio("Decoding Strategy:", ("Greedy Search", "Beam Search (k=3)"))
+st.title("💬 Empathetic Conversational Chatbot")
+st.caption("A Transformer-based chatbot built from scratch to provide empathetic replies.")
 
-# Initialize chat history
+st.sidebar.header("Chat Configuration")
+selected_emotion = st.sidebar.selectbox("1. Choose the emotion you are feeling:", EMOTION_LIST, index=22) # Default to 'joyful'
+decoding_strategy = st.sidebar.radio("2. Select a Decoding Strategy:", ("Greedy Search", "Beam Search (k=3)"))
+situation_text = st.sidebar.text_area(
+    "3. Briefly describe the situation (optional but recommended):",
+    "I just got a promotion at work!",
+    height=100
+)
+
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Hello! How can I help you today?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Hello! Please tell me what's on your mind."}]
 
-# Display chat messages from history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Accept user input
-if prompt := st.chat_input("What's on your mind?"):
-    # Add user message to history and display it
+if prompt := st.chat_input("Share your thoughts..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate and display assistant response
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         with st.spinner("Thinking..."):
-            # Construct the full input for the model
-            emotion_token = f"<emotion_{selected_emotion}>"
-            # NOTE: We don't need a "Situation" for the chatbot, so we use a placeholder.
-            input_text = f"{emotion_token} | Situation: user is talking to a chatbot. | Customer: {prompt} Agent:"
-
-            # Choose the decoding function
-            if decoding_strategy == "Greedy Search":
-                response = greedy_decode(model, input_text)
-            else:
-                response = beam_search_decode(model, input_text, beam_width=3)
             
-            # Clean up the response
+            ### CRITICAL CHANGE ###
+            # The input format MUST EXACTLY MATCH the format used during training.
+            # The model expects a special token like <emotion_joyful>, not the text "Emotion: joyful".
+            emotion_token = f"<emotion_{selected_emotion}>"
+            input_text = f"{emotion_token} | Situation: {situation_text} | Customer: {prompt} Agent:"
+            
+            response = generate_response(model, input_text, decoding_strategy)
+            
+            # Clean the output for better display
             clean_response = response.replace(BOS_TOKEN, "").strip()
             if EOS_TOKEN in clean_response:
                 clean_response = clean_response.split(EOS_TOKEN)[0].strip()
 
-        # Simulate a typing effect
+        # Simulate typing effect
         full_response = ""
         for chunk in clean_response.split():
             full_response += chunk + " "
@@ -283,5 +338,4 @@ if prompt := st.chat_input("What's on your mind?"):
             message_placeholder.markdown(full_response + "▌")
         message_placeholder.markdown(full_response)
         
-    # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": full_response})
