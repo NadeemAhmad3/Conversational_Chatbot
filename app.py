@@ -307,7 +307,7 @@ st.markdown("""
          /* Remove ALL previous sidebar toggle styles and replace with this */
 
     /* Force the sidebar toggle to always be visible */
-    section[data-testid="stSidebar"] ~ div .stSidebarCollapsedControl {
+    .stSidebarCollapsedControl {
         visibility: visible !important;
         display: flex !important;
         opacity: 1 !important;
