@@ -1,8 +1,4 @@
-# requirements.txt
 
-streamlit
-requests
-
-# Use the --extra-index-url flag which is compatible with modern installers
-# Pin to a version of PyTorch that is compatible with Python 3.13
-torch==2.7.1 --extra-index-url https://download.pytorch.org/whl/cpu
+streamlit==1.28.0
+torch==2.1.2
+requests==2.31.0
