@@ -9,6 +9,8 @@ import math
 import time
 import requests
 from io import BytesIO
+import pickle
+import os
 
 # --- MODEL HYPERPARAMETERS (Must match trained model) ---
 EMBED_DIM = 512
@@ -21,6 +23,34 @@ DEVICE = torch.device('cpu')
 
 # --- SPECIAL TOKEN INDICES ---
 UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
+
+# --- SIMPLE VOCABULARY CLASS ---
+class SimpleVocab:
+    """Simple vocabulary class to replace torchtext.vocab.Vocab"""
+    def __init__(self, tokens_to_idx, idx_to_tokens):
+        self.stoi = tokens_to_idx  # string to index
+        self.itos = idx_to_tokens  # index to string
+        
+    def __len__(self):
+        return len(self.itos)
+    
+    def __getitem__(self, token):
+        """Get index for a token"""
+        return self.stoi.get(token, UNK_IDX)
+    
+    def lookup_token(self, idx):
+        """Get token for an index"""
+        if idx < len(self.itos):
+            return self.itos[idx]
+        return '<unk>'
+    
+    def lookup_tokens(self, indices):
+        """Get tokens for a list of indices"""
+        return [self.lookup_token(idx) for idx in indices]
+    
+    def get_itos(self):
+        """Get index to string list"""
+        return self.itos
 
 # --- MODEL ARCHITECTURE CLASSES ---
 
@@ -196,12 +226,25 @@ def load_model_and_vocab():
             vocab_response = requests.get(vocab_url, timeout=120)
             vocab_response.raise_for_status()
             
-            # Load vocab with weights_only=False (vocab contains custom torchtext class)
-            vocab = torch.load(
+            # Load vocab - it should be a dictionary or similar structure
+            vocab_data = torch.load(
                 BytesIO(vocab_response.content), 
                 map_location=DEVICE,
                 weights_only=False
             )
+            
+            # Convert to SimpleVocab if needed
+            if hasattr(vocab_data, 'get_stoi') and hasattr(vocab_data, 'get_itos'):
+                # It's a torchtext vocab object
+                stoi = vocab_data.get_stoi()
+                itos = vocab_data.get_itos()
+                vocab = SimpleVocab(stoi, itos)
+            elif isinstance(vocab_data, dict) and 'stoi' in vocab_data and 'itos' in vocab_data:
+                # It's already a dictionary
+                vocab = SimpleVocab(vocab_data['stoi'], vocab_data['itos'])
+            else:
+                # Try to use it directly
+                vocab = vocab_data
             
             # Get vocab size
             VOCAB_SIZE = len(vocab)
@@ -248,9 +291,15 @@ EOS_TOKEN = vocab.lookup_token(EOS_IDX)
 EMOTION_LIST = sorted([emo.replace('<emotion_', '').replace('>', '') 
                        for emo in vocab.get_itos() if emo.startswith('<emotion_')])
 
+# Fallback if no emotions found
+if not EMOTION_LIST:
+    EMOTION_LIST = ['neutral', 'happy', 'sad', 'angry', 'surprised', 'afraid', 
+                    'disgusted', 'joyful', 'grateful', 'proud', 'sentimental']
+
 # --- INFERENCE FUNCTIONS ---
 
 def simple_tokenizer(s):
+    """Simple word tokenizer"""
     return s.split()
 
 def greedy_decode(model, src_sentence, max_len=50):
