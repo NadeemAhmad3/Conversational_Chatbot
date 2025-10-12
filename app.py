@@ -817,7 +817,9 @@ def main():
         st.session_state.messages.append({"role": "bot", "content": response})
         
         st.rerun()
-# Add this JavaScript injection to force sidebar toggle visibility
+
+if __name__ == "__main__":
+    # Add this JavaScript injection to force sidebar toggle visibility
 st.markdown("""
 <script>
 // Force sidebar toggle to be visible
@@ -847,6 +849,4 @@ forceSidebarToggle();
 setInterval(forceSidebarToggle, 1000);
 </script>
 """, unsafe_allow_html=True)
-
-if __name__ == "__main__":
     main()
