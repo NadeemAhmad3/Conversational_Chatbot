@@ -170,34 +170,29 @@ def load_model_and_vocab():
     VOCAB_PATH = "vocab.pth"
 
     def download_file(url, filename):
-        if not os.path.exists(filename):
-            st.info(f"Downloading required file: {filename}...")
-            try:
-                response = requests.get(url, stream=True)
-                response.raise_for_status()
-                total_size = int(response.headers.get('content-length', 0))
-                progress_bar = st.progress(0)
-                
-                with open(filename, 'wb') as f:
-                    downloaded_size = 0
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                        downloaded_size += len(chunk)
-                        progress = int((downloaded_size / total_size) * 100) if total_size > 0 else 0
-                        progress_bar.progress(progress)
-                progress_bar.empty()
-                
-                # --- START OF TEMPORARY DEBUG CODE ---
-                with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
-                    content_start = f.read(100)
-                    st.warning(f"DEBUG: Start of downloaded file '{filename}':")
-                    st.code(content_start)
-                # --- END OF TEMPORARY DEBUG CODE ---
+    if not os.path.exists(filename):
+        st.info(f"Downloading required file: {filename}...")
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            response = requests.get(url, headers=headers, stream=True)
+            response.raise_for_status()
+            total_size = int(response.headers.get('content-length', 0))
+            progress_bar = st.progress(0)
+            
+            with open(filename, 'wb') as f:
+                downloaded_size = 0
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded_size += len(chunk)
+                    progress = int((downloaded_size / total_size) * 100) if total_size > 0 else 0
+                    progress_bar.progress(progress)
+            progress_bar.empty()
 
-            except requests.exceptions.RequestException as e:
-                st.error(f"Error downloading {filename}: {e}")
-                return False
-        return True
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error downloading {filename}: {e}")
+            return False
+    return True
+
 
     if not download_file(MODEL_URL, MODEL_PATH) or not download_file(VOCAB_URL, VOCAB_PATH):
         st.error("Could not download necessary model files. The app cannot continue.")
