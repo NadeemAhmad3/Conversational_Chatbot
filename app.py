@@ -1,5 +1,3 @@
-# app.py - Final Corrected Streamlit Chatbot Application
-
 import streamlit as st
 import torch
 import torch.nn as nn
@@ -11,10 +9,7 @@ import os
 import requests
 
 # --- 1. DEFINE THE ENTIRE MODEL ARCHITECTURE ---
-# (This section is unchanged, it defines the model classes)
-
-# --- Model Hyperparameters (Must match the trained model) ---
-VOCAB_SIZE = 16812 # Placeholder, will be updated
+VOCAB_SIZE = 16812  # Placeholder, will be updated
 EMBED_DIM = 512
 NUM_HEADS = 4
 NUM_ENCODER_LAYERS = 3
@@ -24,7 +19,6 @@ FF_DIM = 4 * EMBED_DIM
 DEVICE = torch.device('cpu')
 UNK_IDX, PAD_IDX, BOS_IDX, EOS_IDX = 0, 1, 2, 3
 
-# --- Paste all your model classes here ---
 class PositionalEncoding(nn.Module):
     def __init__(self, emb_dim: int, dropout: float = 0.1, max_len: int = 5000):
         super().__init__()
@@ -35,6 +29,7 @@ class PositionalEncoding(nn.Module):
         pe[:, 0, 0::2] = torch.sin(position * div_term)
         pe[:, 0, 1::2] = torch.cos(position * div_term)
         self.register_buffer('pe', pe)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.pe[:x.size(0)]
         return self.dropout(x)
@@ -47,12 +42,14 @@ class MultiHeadAttention(nn.Module):
         self.fc_q, self.fc_k, self.fc_v, self.fc_o = nn.Linear(emb_dim, emb_dim), nn.Linear(emb_dim, emb_dim), nn.Linear(emb_dim, emb_dim), nn.Linear(emb_dim, emb_dim)
         self.dropout = nn.Dropout(dropout)
         self.scale = torch.sqrt(torch.FloatTensor([self.head_dim])).to(DEVICE)
+
     def forward(self, query, key, value, mask=None):
         batch_size = query.shape[0]
         Q, K, V = self.fc_q(query), self.fc_k(key), self.fc_v(value)
         Q, K, V = [x.view(batch_size, -1, self.num_heads, self.head_dim).permute(0, 2, 1, 3) for x in (Q, K, V)]
         energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale
-        if mask is not None: energy = energy.masked_fill(mask == 0, -1e10)
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, -1e10)
         attention = torch.softmax(energy, dim=-1)
         x = torch.matmul(self.dropout(attention), V).permute(0, 2, 1, 3).contiguous().view(batch_size, -1, self.emb_dim)
         return self.fc_o(x), attention
@@ -62,7 +59,9 @@ class PositionwiseFeedforward(nn.Module):
         super().__init__()
         self.fc_1, self.fc_2 = nn.Linear(emb_dim, ff_dim), nn.Linear(ff_dim, emb_dim)
         self.dropout, self.relu = nn.Dropout(dropout), nn.ReLU()
-    def forward(self, x): return self.fc_2(self.dropout(self.relu(self.fc_1(x))))
+
+    def forward(self, x):
+        return self.fc_2(self.dropout(self.relu(self.fc_1(x))))
 
 class EncoderLayer(nn.Module):
     def __init__(self, emb_dim, num_heads, ff_dim, dropout):
@@ -71,6 +70,7 @@ class EncoderLayer(nn.Module):
         self.feed_forward = PositionwiseFeedforward(emb_dim, ff_dim, dropout)
         self.norm1, self.norm2 = nn.LayerNorm(emb_dim), nn.LayerNorm(emb_dim)
         self.dropout = nn.Dropout(dropout)
+
     def forward(self, src, src_mask):
         _src, _ = self.self_attn(src, src, src, src_mask)
         src = self.norm1(src + self.dropout(_src))
@@ -86,6 +86,7 @@ class DecoderLayer(nn.Module):
         self.feed_forward = PositionwiseFeedforward(emb_dim, ff_dim, dropout)
         self.norm1, self.norm2, self.norm3 = nn.LayerNorm(emb_dim), nn.LayerNorm(emb_dim), nn.LayerNorm(emb_dim)
         self.dropout = nn.Dropout(dropout)
+
     def forward(self, trg, enc_src, trg_mask, src_mask):
         _trg, _ = self.self_attn(trg, trg, trg, trg_mask)
         trg = self.norm1(trg + self.dropout(_trg))
@@ -104,11 +105,13 @@ class Encoder(nn.Module):
         self.layers = nn.ModuleList([EncoderLayer(emb_dim, num_heads, ff_dim, dropout) for _ in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
         self.scale = torch.sqrt(torch.FloatTensor([emb_dim])).to(device)
+
     def forward(self, src, src_mask):
         tok_embedded = self.tok_embedding(src) * self.scale
         pos_embedded = self.pos_embedding(tok_embedded.permute(1, 0, 2)).permute(1, 0, 2)
         src = self.dropout(pos_embedded)
-        for layer in self.layers: src = layer(src, src_mask)
+        for layer in self.layers:
+            src = layer(src, src_mask)
         return src
 
 class Decoder(nn.Module):
@@ -121,11 +124,13 @@ class Decoder(nn.Module):
         self.fc_out = nn.Linear(emb_dim, output_dim)
         self.dropout = nn.Dropout(dropout)
         self.scale = torch.sqrt(torch.FloatTensor([emb_dim])).to(device)
+
     def forward(self, trg, enc_src, trg_mask, src_mask):
         tok_embedded = self.tok_embedding(trg) * self.scale
         pos_embedded = self.pos_embedding(tok_embedded.permute(1, 0, 2)).permute(1, 0, 2)
         trg = self.dropout(pos_embedded)
-        for layer in self.layers: trg, attention = layer(trg, enc_src, trg_mask, src_mask)
+        for layer in self.layers:
+            trg, attention = layer(trg, enc_src, trg_mask, src_mask)
         return self.fc_out(trg), attention
 
 class Seq2SeqTransformer(nn.Module):
@@ -134,12 +139,15 @@ class Seq2SeqTransformer(nn.Module):
         self.encoder, self.decoder = encoder, decoder
         self.src_pad_idx, self.trg_pad_idx = src_pad_idx, trg_pad_idx
         self.device = device
+
     def make_src_mask(self, src):
         return (src != self.src_pad_idx).unsqueeze(1).unsqueeze(2)
+
     def make_trg_mask(self, trg):
         trg_pad_mask = (trg != self.trg_pad_idx).unsqueeze(1).unsqueeze(2)
         trg_sub_mask = torch.tril(torch.ones((trg.shape[1], trg.shape[1]), device=self.device)).bool()
         return trg_pad_mask & trg_sub_mask
+
     def forward(self, src, trg):
         src_mask, trg_mask = self.make_src_mask(src), self.make_trg_mask(trg)
         enc_src = self.encoder(src, src_mask)
@@ -147,9 +155,6 @@ class Seq2SeqTransformer(nn.Module):
 
 # --- 2. FILE HANDLING AND MODEL LOADING ---
 
-### CRITICAL CHANGE ###
-# Using a static, hardcoded list of the 32 emotions from the dataset.
-# This is robust and prevents non-emotion text from appearing in the list.
 EMOTION_LIST = [
     'afraid', 'angry', 'annoyed', 'anticipating', 'anxious', 'apprehensive',
     'ashamed', 'caring', 'confident', 'content', 'devastated', 'disappointed',
@@ -157,12 +162,9 @@ EMOTION_LIST = [
     'guilty', 'hopeful', 'impressed', 'jealous', 'joyful', 'lonely', 'nostalgic',
     'prepared', 'proud', 'sad', 'sentimental', 'surprised', 'terrified', 'trusting'
 ]
+
 @st.cache_resource
 def load_model_and_vocab():
-    """
-    Downloads model files from a public URL if they don't exist locally,
-    then loads the model and vocabulary.
-    """
     MODEL_URL = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/best-model-v4-stable.pt"
     VOCAB_URL = "https://huggingface.co/Nadeemoo3/Chatbot/resolve/main/vocab.pth"
 
@@ -170,29 +172,28 @@ def load_model_and_vocab():
     VOCAB_PATH = "vocab.pth"
 
     def download_file(url, filename):
-    if not os.path.exists(filename):
-        st.info(f"Downloading required file: {filename}...")
-        try:
-            headers = {"User-Agent": "Mozilla/5.0"}
-            response = requests.get(url, headers=headers, stream=True)
-            response.raise_for_status()
-            total_size = int(response.headers.get('content-length', 0))
-            progress_bar = st.progress(0)
-            
-            with open(filename, 'wb') as f:
-                downloaded_size = 0
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    downloaded_size += len(chunk)
-                    progress = int((downloaded_size / total_size) * 100) if total_size > 0 else 0
-                    progress_bar.progress(progress)
-            progress_bar.empty()
+        if not os.path.exists(filename):
+            st.info(f"Downloading required file: {filename}...")
+            try:
+                headers = {"User-Agent": "Mozilla/5.0"}
+                response = requests.get(url, headers=headers, stream=True)
+                response.raise_for_status()
+                total_size = int(response.headers.get('content-length', 0))
+                progress_bar = st.progress(0)
 
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error downloading {filename}: {e}")
-            return False
-    return True
+                with open(filename, 'wb') as f:
+                    downloaded_size = 0
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        downloaded_size += len(chunk)
+                        progress = int((downloaded_size / total_size) * 100) if total_size > 0 else 0
+                        progress_bar.progress(progress)
+                progress_bar.empty()
 
+            except requests.exceptions.RequestException as e:
+                st.error(f"Error downloading {filename}: {e}")
+                return False
+        return True
 
     if not download_file(MODEL_URL, MODEL_PATH) or not download_file(VOCAB_URL, VOCAB_PATH):
         st.error("Could not download necessary model files. The app cannot continue.")
@@ -202,18 +203,19 @@ def load_model_and_vocab():
         vocab = torch.load(VOCAB_PATH, weights_only=False)
         global VOCAB_SIZE
         VOCAB_SIZE = len(vocab)
-        
+
         encoder = Encoder(VOCAB_SIZE, EMBED_DIM, NUM_ENCODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
         decoder = Decoder(VOCAB_SIZE, EMBED_DIM, NUM_DECODER_LAYERS, NUM_HEADS, FF_DIM, DROPOUT, DEVICE)
         model = Seq2SeqTransformer(encoder, decoder, PAD_IDX, PAD_IDX, DEVICE).to(DEVICE)
-        
+
         model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False))
         model.eval()
-        
+
         return model, vocab
     except Exception as e:
         st.error(f"Failed to load the model or vocabulary. Error: {e}")
         return None, None
+
 
 
 model, vocab = load_model_and_vocab()
