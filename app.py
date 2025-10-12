@@ -308,10 +308,12 @@ st.markdown("""
         visibility: visible !important;
         display: flex !important;
         opacity: 1 !important;
-        z-index: 1000 !important;
+        z-index: 9999 !important;
         position: fixed !important;
         top: 20px !important;
         left: 10px !important;
+        width: 48px !important;
+        height: 48px !important;
     }
 
     /* Style the collapsed sidebar button */
@@ -320,10 +322,11 @@ st.markdown("""
         border: none !important;
         border-radius: 8px !important;
         color: white !important;
-        margin: 8px !important;
+        margin: 0 !important;
+        padding: 0 !important;
         box-shadow: 0 2px 10px rgba(0, 245, 255, 0.3) !important;
-        min-width: 40px !important;
-        min-height: 40px !important;
+        width: 100% !important;
+        height: 100% !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -341,11 +344,19 @@ st.markdown("""
         width: 24px !important;
         height: 24px !important;
     }
+
+    /* Fallback for any nested or alternate toggle classes */
+    div[class*="sidebar-collapsed-control"] {
+        visibility: visible !important;
+        display: flex !important;
+        opacity: 1 !important;
+        z-index: 9999 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ========== JavaScript to Force Sidebar Toggle Visibility ==========
-st.components.html("""
+st.components.v1.html("""
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const toggle = document.querySelector('[data-testid="stSidebarCollapsedControl"]');
@@ -353,7 +364,10 @@ st.components.html("""
             toggle.style.display = 'flex';
             toggle.style.visibility = 'visible';
             toggle.style.opacity = '1';
-            toggle.style.zIndex = '1000';
+            toggle.style.zIndex = '9999';
+            toggle.style.position = 'fixed';
+            toggle.style.top = '20px';
+            toggle.style.left = '10px';
         }
     });
 </script>
@@ -723,7 +737,6 @@ def main():
       </div>
     """, unsafe_allow_html=True)
 
-    
     # Load model
     model, vocab, device = load_model_and_vocab()
     
