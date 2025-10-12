@@ -289,10 +289,11 @@ st.markdown("""
         box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
     }
     
-    /* Hide default streamlit elements */
+       /* Hide default streamlit elements */
     .stDeployButton {display: none;}
     #MainMenu {visibility: hidden;}
     .stDecoration {display: none;}
+    
     /* Final cleanup — remove any zero-height or empty markdown wrappers */
     div[data-testid="stMarkdownContainer"]:has(> :empty),
     div[data-testid="stVerticalBlock"]:not(:has(*)),
@@ -303,22 +304,34 @@ st.markdown("""
       padding: 0 !important;
     }
     
-    /* Restore sidebar toggle button */
-    div[data-testid="collapsedControl"] {
+    /* Ensure sidebar toggle button is always visible */
+    [data-testid="collapsedControl"] {
         visibility: visible !important;
         display: flex !important;
         opacity: 1 !important;
-        width: auto !important;
-        height: auto !important;
-        z-index: 9999 !important;
     }
 
-    /* Make sure it stays clickable */
-    div[data-testid="collapsedControl"] button {
-        pointer-events: auto !important;
-        cursor: pointer !important;
+    /* Style the sidebar toggle button */
+    [data-testid="collapsedControl"] button {
+        background: linear-gradient(135deg, #00f5ff, #7b2ff7) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        color: white !important;
+        margin: 0.5rem !important;
+        box-shadow: 0 2px 10px rgba(0, 245, 255, 0.3) !important;
+        transition: all 0.3s ease !important;
     }
 
+    [data-testid="collapsedControl"] button:hover {
+        transform: scale(1.05) !important;
+        box-shadow: 0 4px 15px rgba(0, 245, 255, 0.5) !important;
+    }
+
+    /* Ensure the button icon is visible */
+    [data-testid="collapsedControl"] button svg {
+        fill: white !important;
+        stroke: white !important;
+    }
 
 
 </style>
