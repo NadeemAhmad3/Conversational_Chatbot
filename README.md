@@ -408,19 +408,19 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 ## 👥 Authors
 
-- **[Your Name]** - [GitHub](https://github.com/yourusername) - [LinkedIn](https://linkedin.com/in/yourprofile)
-- **[Partner Name]** - [GitHub](https://github.com/partnername) - [LinkedIn](https://linkedin.com/in/partnerprofile)
+- **Nadeem Ahmad** - [GitHub](https://github.com/NadeemAhmad3) - [LinkedIn](https://linkedin.com/in/nadeem-ahmad3/)
+- **Bisam Ahmad** - [GitHub](https://github.com/bisam-27) - [LinkedIn](https://linkedin.com/in/bisam-ahmad-1bb581242/)
 
 ## 🙏 Acknowledgments
 
 - **Dataset**: [Empathetic Dialogues by Facebook AI](https://github.com/facebookresearch/EmpatheticDialogues)
 - **Paper**: "Towards Empathetic Open-domain Conversation Models" by Rashkin et al.
 - **Inspiration**: "Attention Is All You Need" by Vaswani et al.
-- **Course**: [Your Course Name] - [University Name]
+- **Course**: GenerativeAI - Fast-NU 
 
 ## 📖 Blog Post
 
-Read our detailed blog post about this project: [Medium Link]
+Read our detailed blog post about this project: [[Medium Link]](https://medium.com/@ahmadbisam28/unveiling-mira-2379-my-journey-building-an-empathetic-ai-chatbot-with-transformers-and-pytorch-6e454b7dce07)
 
 Topics covered:
 - Dataset exploration and preprocessing
@@ -432,8 +432,8 @@ Topics covered:
 ## 📞 Contact
 
 For questions or feedback:
-- **Email**: your.email@example.com
-- **GitHub Issues**: [Create an issue](https://github.com/yourusername/empathetic-chatbot/issues)
+- **Email**: ahmadbisam27@gmail.com , nadeemahmad2703@gmail.com
+- **GitHub Issues**: [Create an issue](https://github.com/NadeemAhmad3/Conversational_Chatbot/issues)
 
 ## 🔮 Future Work
 
@@ -462,10 +462,10 @@ For questions or feedback:
 📝 **Citation**:
 ```bibtex
 @misc{empathetic-chatbot-2025,
-  author = {Your Name},
+  author = Bisam Ahmad , Nadeem Ahmad,
   title = {Empathetic Conversational Chatbot with Transformer Architecture},
   year = {2025},
   publisher = {GitHub},
-  url = {https://github.com/yourusername/empathetic-chatbot}
+  url = {https://github.com/NadeemAhmad3/Conversational_Chatbot}
 }
 ```
