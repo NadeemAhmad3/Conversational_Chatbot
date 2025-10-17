@@ -25,7 +25,7 @@ This chatbot is designed to generate contextually appropriate and empathetic res
 
 ## 🚀 Live Demo
 
-🔗 **Deployed Application**: [Your Streamlit/Gradio Link Here]
+🔗 **Deployed Application**: [[Streamlit Link]](https://mira-2379.streamlit.app/)
 
 Try out the chatbot with different emotions and situations to see empathetic responses generated in real-time!
 
