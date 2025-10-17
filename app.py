@@ -649,18 +649,13 @@ def plot_attention_heatmap(attention, src_tokens, trg_tokens):
     fig = None
     if attention is not None:
         try:
-            # attention shape: [batch_size, num_heads, trg_len, src_len]
-            attention = attention.squeeze(0).cpu().detach().numpy()  # -> [num_heads, trg_len, src_len]
-            
-            # Average the attention scores across all heads for visualization
-            attention = attention.mean(axis=0)  # -> [trg_len, src_len]
+            attention = attention.squeeze(0).cpu().detach().numpy()
+            attention = attention.mean(axis=0)
 
-            # Ensure dimensions match
             if attention.shape[0] != len(trg_tokens) or attention.shape[1] != len(src_tokens):
-                 st.warning("Token length mismatch, heatmap may be inaccurate.")
+                 st.warning(f"Token length mismatch for heatmap: Target length ({len(trg_tokens)}) vs Attention dim ({attention.shape[0]}), Source length ({len(src_tokens)}) vs Attention dim ({attention.shape[1]})")
                  return None
 
-            # Create the plot
             fig, ax = plt.subplots(figsize=(max(8, len(src_tokens) * 0.6), max(6, len(trg_tokens) * 0.6)))
             sns.set_theme(style="white")
             sns.heatmap(
@@ -680,16 +675,18 @@ def plot_attention_heatmap(attention, src_tokens, trg_tokens):
             return None
     return fig
 
-# === MODIFIED START ===
 def greedy_decode(model, vocab, src_sentence, device, max_len=50):
-    """Greedy decoding for inference. Now returns all data needed for plotting."""
+    """Greedy decoding for inference. Returns all data needed for plotting."""
     model.eval()
     
     BOS_IDX = vocab['<bos>']
     EOS_IDX = vocab['<eos>']
     
     tokens = simple_tokenizer(src_sentence)
-    src_indexes = [BOS_IDX] + [vocab.get(token, vocab['<unk>']) for token in tokens] + [EOS_IDX]
+    # === MODIFIED START ===
+    # Use direct indexing, as torchtext vocab handles unknown tokens automatically.
+    src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
+    # === MODIFIED END ===
     src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(device)
     src_mask = model.make_src_mask(src_tensor)
     
@@ -716,14 +713,10 @@ def greedy_decode(model, vocab, src_sentence, device, max_len=50):
     trg_tokens = vocab.lookup_tokens(trg_indexes)
     response = " ".join(trg_tokens).replace("<bos>", "").replace("<eos>", "").strip()
     
-    # Get the source tokens WITH special tokens for correct labeling
     src_tokens_with_special = vocab.lookup_tokens(src_indexes)
-    
-    # The target tokens for labeling should NOT include <bos> but MAY include <eos>
     trg_tokens_for_label = trg_tokens[1:]
     
     return response, final_attention, src_tokens_with_special, trg_tokens_for_label
-# === MODIFIED END ===
 
 def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len=50):
     """Beam search decoding for inference"""
@@ -735,7 +728,10 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
     EOS_IDX = vocab['<eos>']
     
     tokens = simple_tokenizer(src_sentence)
-    src_indexes = [BOS_IDX] + [vocab.get(token, vocab['<unk>']) for token in tokens] + [EOS_IDX]
+    # === MODIFIED START ===
+    # Use direct indexing here as well for consistency.
+    src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
+    # === MODIFIED END ===
     src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(device)
     src_mask = model.make_src_mask(src_tensor)
     
@@ -889,7 +885,6 @@ def main():
         
         st.session_state.messages.append({"role": "user", "content": user_input})
         
-        # === MODIFIED START ===
         response, attention_weights, source_tokens, target_tokens = "", None, [], []
 
         with st.spinner("Mira is thinking..."):
@@ -907,7 +902,6 @@ def main():
             "source_tokens": source_tokens,
             "target_tokens": target_tokens
         })
-        # === MODIFIED END ===
         
         st.rerun()
 
