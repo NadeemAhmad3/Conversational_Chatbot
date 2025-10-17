@@ -4,3 +4,5 @@ torchtext==0.16.2
 kaggle>=1.6.0
 numpy==1.23.5
 pandas>=2.0.0
+matplotlib==3.8.0
+seaborn==0.13.2
