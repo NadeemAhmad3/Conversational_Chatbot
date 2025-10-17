@@ -7,12 +7,8 @@ import re
 import os
 import json
 from kaggle.api.kaggle_api_extended import KaggleApi
-
-# === ADDED START ===
-# Imports for plotting the attention heatmap
 import matplotlib.pyplot as plt
 import seaborn as sns
-# === ADDED END ===
 
 # ========== Page Configuration ==========
 st.set_page_config(
@@ -23,7 +19,6 @@ st.set_page_config(
 )
 
 # ========== Enhanced Custom CSS with Dark Theme & Neon Accents ==========
-# ... (Your entire CSS block remains unchanged) ...
 st.markdown("""
 <style>
     /* Your existing CSS goes here, no changes needed */
@@ -369,7 +364,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ========== JavaScript to Force Sidebar Toggle Visibility ==========
-# ... (Your JavaScript block remains unchanged) ...
 st.components.v1.html("""
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -388,7 +382,6 @@ st.components.v1.html("""
 """, height=0)
 
 # ========== Model Architecture Components ==========
-# ... (Your entire model architecture remains unchanged) ...
 class PositionalEncoding(nn.Module):
     def __init__(self, emb_dim, dropout=0.1, max_len=5000):
         super().__init__()
@@ -559,7 +552,6 @@ class Seq2SeqTransformer(nn.Module):
 
 
 # ========== Helper Functions ==========
-# ... (download_model_files, load_model_and_vocab, etc. remain unchanged) ...
 def normalize_text(text):
     text = str(text).lower()
     text = re.sub(r'\s+', ' ', text).strip()
@@ -652,7 +644,6 @@ def load_model_and_vocab():
         st.error(f"Error loading model: {str(e)}")
         return None, None, None
 
-# === ADDED START ===
 def plot_attention_heatmap(attention, src_tokens, trg_tokens):
     """Generates and returns a matplotlib figure of the attention heatmap."""
     fig = None
@@ -677,8 +668,8 @@ def plot_attention_heatmap(attention, src_tokens, trg_tokens):
                 annot=False, cmap='viridis', ax=ax, cbar=True
             )
             
-            ax.set_xlabel('Source Tokens', fontsize=12)
-            ax.set_ylabel('Generated Tokens', fontsize=12)
+            ax.set_xlabel('Source Tokens (Input)', fontsize=12)
+            ax.set_ylabel('Target Tokens (Generated)', fontsize=12)
             ax.set_title('Encoder-Decoder Attention Heatmap', fontsize=14)
             
             plt.xticks(rotation=45, ha="right", fontsize=10)
@@ -688,18 +679,17 @@ def plot_attention_heatmap(attention, src_tokens, trg_tokens):
             st.error(f"Failed to create heatmap: {e}")
             return None
     return fig
-# === ADDED END ===
 
-# === MODIFIED ===
+# === MODIFIED START ===
 def greedy_decode(model, vocab, src_sentence, device, max_len=50):
-    """Greedy decoding for inference. Now returns attention weights."""
+    """Greedy decoding for inference. Now returns all data needed for plotting."""
     model.eval()
     
     BOS_IDX = vocab['<bos>']
     EOS_IDX = vocab['<eos>']
     
     tokens = simple_tokenizer(src_sentence)
-    src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
+    src_indexes = [BOS_IDX] + [vocab.get(token, vocab['<unk>']) for token in tokens] + [EOS_IDX]
     src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(device)
     src_mask = model.make_src_mask(src_tensor)
     
@@ -707,7 +697,7 @@ def greedy_decode(model, vocab, src_sentence, device, max_len=50):
         enc_src = model.encoder(src_tensor, src_mask)
     
     trg_indexes = [BOS_IDX]
-    final_attention = None # Variable to store the final attention tensor
+    final_attention = None 
     
     for i in range(max_len):
         trg_tensor = torch.LongTensor(trg_indexes).unsqueeze(0).to(device)
@@ -716,7 +706,7 @@ def greedy_decode(model, vocab, src_sentence, device, max_len=50):
         with torch.no_grad():
             output, attention = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
         
-        final_attention = attention # Store attention from the last step
+        final_attention = attention
         pred_token_idx = output.argmax(2)[:, -1].item()
         trg_indexes.append(pred_token_idx)
         
@@ -726,12 +716,17 @@ def greedy_decode(model, vocab, src_sentence, device, max_len=50):
     trg_tokens = vocab.lookup_tokens(trg_indexes)
     response = " ".join(trg_tokens).replace("<bos>", "").replace("<eos>", "").strip()
     
-    # Return the response, final attention, and the tokens for plotting
-    return response, final_attention, trg_tokens[1:]
+    # Get the source tokens WITH special tokens for correct labeling
+    src_tokens_with_special = vocab.lookup_tokens(src_indexes)
+    
+    # The target tokens for labeling should NOT include <bos> but MAY include <eos>
+    trg_tokens_for_label = trg_tokens[1:]
+    
+    return response, final_attention, src_tokens_with_special, trg_tokens_for_label
+# === MODIFIED END ===
 
 def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len=50):
     """Beam search decoding for inference"""
-    # ... (Your beam_search_decode function remains unchanged) ...
     import torch.nn.functional as F
     
     model.eval()
@@ -740,7 +735,7 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
     EOS_IDX = vocab['<eos>']
     
     tokens = simple_tokenizer(src_sentence)
-    src_indexes = [BOS_IDX] + [vocab[token] for token in tokens] + [EOS_IDX]
+    src_indexes = [BOS_IDX] + [vocab.get(token, vocab['<unk>']) for token in tokens] + [EOS_IDX]
     src_tensor = torch.LongTensor(src_indexes).unsqueeze(0).to(device)
     src_mask = model.make_src_mask(src_tensor)
     
@@ -788,7 +783,6 @@ def beam_search_decode(model, vocab, src_sentence, device, beam_width=3, max_len
 
 # ========== Main Application ==========
 def main():
-    # Header
     st.markdown("""
       <div style="margin-bottom:1rem;">
           <div class="main-header">✨ MIRA</div>
@@ -796,7 +790,6 @@ def main():
       </div>
     """, unsafe_allow_html=True)
 
-    # Load model
     model, vocab, device = load_model_and_vocab()
     
     if model is None:
@@ -804,7 +797,6 @@ def main():
         st.info("Verify Kaggle credentials and dataset accessibility.")
         return
     
-    # Sidebar Settings
     with st.sidebar:
         st.markdown("### ⚙️ Settings")
         st.markdown("---")
@@ -816,7 +808,6 @@ def main():
                     "prepared", "proud", "sad", "sentimental", "surprised", "terrified", "trusting"]
         
         selected_emotion = st.selectbox("Emotion Context", ["auto"] + emotions)
-        
         decoding_method = st.radio("Decoding Strategy", ["Greedy Search", "Beam Search"])
         
         beam_width = 3
@@ -824,10 +815,8 @@ def main():
             beam_width = st.slider("Beam Width", 2, 5, 3)
         
         st.markdown("---")
-        # === ADDED START ===
         st.markdown("### 🔬 Advanced")
         show_heatmap = st.checkbox("Show Attention Heatmap", help="Visualize model attention. Only available for Greedy Search.")
-        # === ADDED END ===
         st.markdown("---")
         
         st.markdown('<div class="sidebar-info">', unsafe_allow_html=True)
@@ -840,14 +829,12 @@ def main():
             st.session_state.messages = []
             st.rerun()
     
-    # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
     
-    # Chat Display Area
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     
-    if len(st.session_state.messages) == 0:
+    if not st.session_state.messages:
         st.markdown("""
         <div class="empty-chat">
             <div class="empty-chat-icon">💬</div>
@@ -863,7 +850,7 @@ def main():
                     {message["content"]}
                 </div>
                 """, unsafe_allow_html=True)
-            else: # Bot message
+            else:
                 st.markdown(f"""
                 <div class="chat-message bot-message">
                     <div class="message-label bot-label">Mira</div>
@@ -871,7 +858,6 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # === MODIFIED ===: Display heatmap below the relevant bot message
                 if show_heatmap and message.get("attention") is not None:
                     with st.expander("View Attention Heatmap"):
                         fig = plot_attention_heatmap(
@@ -886,53 +872,42 @@ def main():
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Input Section
     st.markdown('<div class="input-section">', unsafe_allow_html=True)
-    
     situation = st.text_input("📍 Situation (Optional)", placeholder="Describe the context or situation...", key="situation_input")
-    
     col1, col2 = st.columns([5, 1])
-    
     with col1:
         user_input = st.text_input("💭 Your Message", placeholder="Type your message here...", key="user_input", label_visibility="collapsed")
-    
     with col2:
         send_button = st.button("Send", use_container_width=True, type="primary")
-    
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Handle message sending
     if send_button and user_input:
         normalized_input = normalize_text(user_input)
-        
         emotion = "neutral" if selected_emotion == "auto" else selected_emotion
         normalized_situation = normalize_text(situation) if situation.strip() else "general conversation"
-        
         input_text = f"Emotion: {emotion} | Situation: {normalized_situation} | Customer: {normalized_input} Agent:"
         
         st.session_state.messages.append({"role": "user", "content": user_input})
         
-        # === MODIFIED ===: Capture attention weights and tokens
-        response = ""
-        attention_weights = None
-        target_tokens = []
+        # === MODIFIED START ===
+        response, attention_weights, source_tokens, target_tokens = "", None, [], []
 
         with st.spinner("Mira is thinking..."):
             if decoding_method == "Greedy Search":
-                response, attention_weights, target_tokens = greedy_decode(model, vocab, input_text, device)
-            else: # Beam Search
+                response, attention_weights, source_tokens, target_tokens = greedy_decode(model, vocab, input_text, device)
+            else:
                 response = beam_search_decode(model, vocab, input_text, device, beam_width=beam_width)
                 if show_heatmap:
                     st.toast("Heatmap is only available for Greedy Search.", icon="ℹ️")
 
-        # Store all necessary info for display and plotting
         st.session_state.messages.append({
             "role": "bot",
             "content": response,
             "attention": attention_weights,
-            "source_tokens": simple_tokenizer(input_text),
+            "source_tokens": source_tokens,
             "target_tokens": target_tokens
         })
+        # === MODIFIED END ===
         
         st.rerun()
 
